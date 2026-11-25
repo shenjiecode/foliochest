@@ -1,0 +1,30 @@
+# Local data and sensitive runtime state
+/data/
+/vaults/
+/.local/
+/runtime/
+/backups/
+/exports/
+/.cynos/
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.kdbx
+*.log
+*.tmp
+
+# Build outputs and frontend dependencies
+/bin/
+/dist/
+/node_modules/
+/web/node_modules/
+/web/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
