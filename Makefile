@@ -8,8 +8,11 @@ build: web
 	CGO_ENABLED=0 go build -trimpath -o bin/keyfolio ./cmd/keyfolio
 
 test: web
+	npm --prefix web test
 	go test ./...
 
 check: web
+	npm --prefix web run check
+	npm --prefix web test
 	go vet ./...
 	go test -race ./...

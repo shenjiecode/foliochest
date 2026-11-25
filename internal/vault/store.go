@@ -48,6 +48,8 @@ type Vault struct {
 	key         []byte
 	generation  uint64
 	items       map[string]*item
+	versions    map[string]*version
+	batchStates map[string]int
 	issues      []string
 	scanErr     error
 	recordBytes int64
@@ -62,6 +64,8 @@ func (v *Vault) lock() {
 	v.key = nil
 	v.configBytes = nil
 	v.items = map[string]*item{}
+	v.versions = nil
+	v.batchStates = nil
 	v.issues = nil
 	v.scanErr = nil
 	v.recordBytes = 0
@@ -308,6 +312,8 @@ func (v *Vault) scan() error {
 		}
 	}
 	v.items = next
+	v.versions = versions
+	v.batchStates = batchState
 	v.issues = issues
 	v.recordBytes = totalBytes
 	v.recordFiles = len(files)
@@ -379,7 +385,12 @@ func summary(it *item) Summary {
 	m := it.heads[0].meta
 	return Summary{Key: m.Key, Description: m.Description, Revision: m.Revision, ReadPolicy: m.ReadPolicy, WritePolicy: m.WritePolicy, State: it.state, Versions: it.count}
 }
-func (v *Vault) List(query string) ([]Summary, error) {
+func (v *Vault) List(query string) ([]Summary, error) { return v.list(query, false) }
+
+// Search is a human-only search. MCP discovery must continue to use List.
+func (v *Vault) Search(query string) ([]Summary, error) { return v.list(query, true) }
+
+func (v *Vault) list(query string, body bool) ([]Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if len(v.key) == 0 {
@@ -392,7 +403,15 @@ func (v *Vault) List(query string) ([]Summary, error) {
 	query = strings.ToLower(strings.TrimSpace(query))
 	for _, it := range v.items {
 		s := summary(it)
-		if query == "" || strings.Contains(strings.ToLower(s.Key+" "+s.Description), query) {
+		matches := query == "" || strings.Contains(strings.ToLower(s.Key+" "+s.Description), query)
+		if !matches && body && it.state == "ready" {
+			doc, err := v.document(it.heads[0])
+			if err != nil {
+				return nil, err
+			}
+			matches = strings.Contains(strings.ToLower(doc.Value), query)
+		}
+		if matches {
 			out = append(out, s)
 		}
 	}
@@ -631,6 +650,10 @@ func (v *Vault) Commit(changes []Change, human, approved bool) ([]Summary, error
 		b.Changes = append(b.Changes, m)
 		docs = append(docs, d)
 	}
+	return v.publishBatch(b, docs)
+}
+
+func (v *Vault) publishBatch(b batch, docs []Document) ([]Summary, error) {
 	plain, err := json.Marshal(docs)
 	if err != nil {
 		return nil, err
@@ -657,7 +680,7 @@ func (v *Vault) Commit(changes []Change, human, approved bool) ([]Summary, error
 		return nil, err
 	}
 	out := []Summary{}
-	for _, c := range changes {
+	for _, c := range b.Changes {
 		if it, ok := v.items[c.Key]; ok {
 			out = append(out, summary(it))
 		}

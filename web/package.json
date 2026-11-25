@@ -1,14 +1,19 @@
 {
   "name": "keyfolio-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "build": "tsc && node scripts/build.mjs",
-    "check": "tsc --noEmit"
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "test": "node scripts/test.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "prettier": "3.6.2",
     "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "markdown-it": "15.0.3"
   }
 }

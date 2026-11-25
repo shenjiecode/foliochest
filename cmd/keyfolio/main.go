@@ -72,6 +72,7 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				app.ExpireIdle()
 				app.Access.Sweep()
 				if !v.Locked() {
 					_ = v.Scan()
@@ -86,7 +87,7 @@ func main() {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	fmt.Printf("Keyfolio 0.1.0-dev\n网页: %s\n资料库: %s\n当前为开发预览，请仅使用合成测试数据。\n", baseURL, *root)
+	fmt.Printf("Keyfolio 0.2.0-dev\n网页: %s\n资料库: %s\n当前为开发预览，请仅使用合成测试数据。\n", baseURL, *root)
 	if err = srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

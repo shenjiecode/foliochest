@@ -34,6 +34,8 @@ type Server struct {
 	sessions    map[string]*webSession
 	mcpHandlers map[string]http.Handler
 	static      fs.FS
+	idle        *idleState
+	maintenance sync.Mutex
 }
 
 func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, error) {
@@ -45,7 +47,11 @@ func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, erro
 	if err != nil {
 		return nil, err
 	}
-	return &Server{Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}, nil
+	idle, err := loadIdle(deviceDir)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}, nil
 }
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -64,6 +70,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-site request denied", http.StatusForbidden)
 		return
 	}
+	s.ExpireIdle()
 	if r.URL.Path == "/mcp" {
 		s.serveMCP(w, r)
 		return
@@ -94,6 +101,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if r.Method != "GET" && r.URL.Path != "/api/activity" && r.URL.Path != "/api/vault/lock" {
+		if !s.maintenance.TryLock() {
+			apiError(w, errors.New("另一个网页操作尚未完成，请稍后重试"), 409)
+			return
+		}
+		defer s.maintenance.Unlock()
+	}
 	switch r.URL.Path {
 	case "/api/state":
 		if !method(w, r, "GET") {
@@ -105,7 +119,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.1.0-dev"})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.2.0-dev"})
 	case "/api/vault/create", "/api/vault/unlock":
 		if !method(w, r, "POST") {
 			return
@@ -135,7 +149,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		s.mu.Unlock()
+		s.activity()
 		writeJSON(w, map[string]bool{"ok": true})
+	case "/api/vault/restore":
+		if !s.Vault.Locked() && !s.authorized(session) {
+			apiError(w, vault.ErrLocked, 401)
+			return
+		}
+		s.restoreBackup(w, r)
 	case "/api/vault/select":
 		if !method(w, r, "POST") {
 			return
@@ -201,6 +222,9 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request, create bool) (s
 	return id, &copySession
 }
 func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
+	if s.serveMaintenance(w, r) {
+		return
+	}
 	switch r.URL.Path {
 	case "/api/vault/lock":
 		if !method(w, r, "POST") {
@@ -212,7 +236,13 @@ func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
 		if !method(w, r, "GET") {
 			return
 		}
-		out, err := s.Vault.List(r.URL.Query().Get("q"))
+		var out []vault.Summary
+		var err error
+		if r.URL.Query().Get("scope") == "body" {
+			out, err = s.Vault.Search(r.URL.Query().Get("q"))
+		} else {
+			out, err = s.Vault.List(r.URL.Query().Get("q"))
+		}
 		if err != nil {
 			apiError(w, err, 409)
 			return
@@ -318,7 +348,10 @@ func method(w http.ResponseWriter, r *http.Request, want string) bool {
 	return true
 }
 func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, vault.MaxFileBytes)
+	return decodeLimit(w, r, dst, vault.MaxFileBytes)
+}
+func decodeLimit(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	if err := d.Decode(dst); err != nil {

@@ -1,3 +1,9 @@
+import "./recovery.css";
+import { esc } from "./ui";
+import { mountHistory } from "./history";
+import { backup, bindRestore, restoreForm } from "./recovery";
+import { renderMarkdown } from "./markdown";
+
 type Policy = "allow" | "ask" | "deny";
 type Summary = {
   key: string;
@@ -57,6 +63,12 @@ let query = "";
 let currentView = "entries";
 let polling = false;
 let visibleToken = "";
+let sessionEpoch = 0;
+let bodySearch = false;
+let bodyMatches: Set<string> | null = null;
+let searchSequence = 0;
+let searchTimer = 0;
+let historyKey = "";
 const labels: Record<Policy, string> = {
   allow: "免确认",
   ask: "需确认",
@@ -69,20 +81,13 @@ const statusLabels: Record<string, string> = {
   missing: "文件缺失",
   invalid: "校验失败",
 };
-const esc = (value: unknown): string =>
-  String(value ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ]!,
-  );
 const $ = <T extends HTMLElement = HTMLElement>(selector: string): T =>
   document.querySelector<T>(selector)!;
 const field = (id: string): string =>
   $<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(id).value;
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
+  const epoch = sessionEpoch;
   const response = await fetch(path, {
     method: body === undefined ? "GET" : "POST",
     credentials: "same-origin",
@@ -98,6 +103,8 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "请求失败");
+  if (epoch !== sessionEpoch && !path.startsWith("/api/vault/"))
+    throw new Error("网页会话已变化，已丢弃旧请求的结果");
   return result as T;
 }
 function notice(message: string, error = false): void {
@@ -126,11 +133,21 @@ function pill(policy: Policy): string {
   return `<span class="pill ${policy}">${labels[policy]}</span>`;
 }
 function renderLock(): void {
+  sessionEpoch++;
+  searchSequence++;
+  bodyMatches = null;
+  bodySearch = false;
+  query = "";
+  historyKey = "";
   editor = null;
   dirty = false;
   draftAttachments = [];
   visibleToken = "";
-  root.innerHTML = `<main class="lock-layout"><section class="intro"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="intro-copy"><p class="eyebrow">YOUR LOCAL KNOWLEDGE VAULT</p><h1>资料留在本地，<br>使用由你决定。</h1><p class="intro-description">用 key 和 description 找到内容。<br>密码、文档与附件加密保存，AI 按你的权限使用。</p></div><div class="intro-footer">Go 后台 · 本地网页 · MCP 接入</div></section><section class="unlock-area"><div class="unlock-card"><p class="eyebrow">${state.vault.exists ? "WELCOME BACK" : "GET STARTED"}</p><h2>${state.vault.exists ? "解锁资料库" : "创建你的资料库"}</h2><p class="muted">${state.vault.exists ? "输入主密码，开启本次本地会话。" : "先选择一个空目录，再设置主密码。"}</p><div id="notice" class="notice" hidden role="status"></div><label for="directory">资料库目录</label><div class="directory-row"><input id="directory" value="${esc(state.vault.directory)}" spellcheck="false"><button id="select-directory" class="button secondary" type="button">切换</button></div><form id="unlock-form"><input type="text" name="username" autocomplete="username" value="Keyfolio" class="sr-only" aria-label="资料库" tabindex="-1"><label for="password">主密码</label><input id="password" type="password" autocomplete="${state.vault.exists ? "current-password" : "new-password"}" minlength="12" required placeholder="${state.vault.exists ? "输入主密码" : "至少 12 个字符，建议使用长口令"}">${state.vault.exists ? "" : '<label for="confirm-password">确认主密码</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required placeholder="再次输入主密码">'}<button class="button primary full" type="submit">${state.vault.exists ? "解锁资料库" : "创建并解锁"} <span aria-hidden="true">→</span></button></form><p class="preview-note">开发预览 · 请先使用合成测试数据</p></div><p class="local-caption">网页和文件均由这台电脑上的服务提供。</p></section></main>`;
+  root.innerHTML = `<main class="lock-layout"><section class="intro"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="intro-copy"><p class="eyebrow">YOUR LOCAL KNOWLEDGE VAULT</p><h1>资料留在本地，<br>使用由你决定。</h1><p class="intro-description">用 key 和 description 找到内容。<br>密码、文档与附件加密保存，AI 按你的权限使用。</p></div><div class="intro-footer">Go 后台 · 本地网页 · MCP 接入</div></section><section class="unlock-area"><div class="unlock-card"><p class="eyebrow">${state.vault.exists ? "WELCOME BACK" : "GET STARTED"}</p><h2>${state.vault.exists ? "解锁资料库" : "创建你的资料库"}</h2><p class="muted">${state.vault.exists ? "输入主密码，开启本次本地会话。" : "先选择一个空目录，再设置主密码。"}</p><div id="notice" class="notice" hidden role="status"></div><label for="directory">资料库目录</label><div class="directory-row"><input id="directory" value="${esc(state.vault.directory)}" spellcheck="false"><button id="select-directory" class="button secondary" type="button">切换</button></div><form id="unlock-form"><input type="text" name="username" autocomplete="username" value="Keyfolio" class="sr-only" aria-label="资料库" tabindex="-1"><label for="password">主密码</label><input id="password" type="password" autocomplete="${state.vault.exists ? "current-password" : "new-password"}" minlength="12" required placeholder="${state.vault.exists ? "输入主密码" : "至少 12 个字符，建议使用长口令"}">${state.vault.exists ? "" : '<label for="confirm-password">确认主密码</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required placeholder="再次输入主密码">'}<button class="button primary full" type="submit">${state.vault.exists ? "解锁资料库" : "创建并解锁"} <span aria-hidden="true">→</span></button></form>${restoreForm(state.vault.directory)}<p class="preview-note">开发预览 · 请先使用合成测试数据</p></div><p class="local-caption">网页和文件均由这台电脑上的服务提供。</p></section></main>`;
+  bindRestore(api, run, async () => {
+    await refreshState(true);
+    notice("备份已恢复，请使用备份的主密码重新解锁。");
+  });
   $("#select-directory").onclick = () =>
     void run(async () => {
       await api("/api/vault/select", { directory: field("#directory") });
@@ -201,17 +218,30 @@ async function renderView(): Promise<void> {
     return;
   }
   $("#view").innerHTML =
-    `<section class="page-heading"><div><p class="eyebrow">COLLECTION</p><h1>全部条目</h1><p class="muted">先找到需要的资料，再决定怎样使用。</p></div><button id="new-entry" class="button primary">＋ 新建条目</button></section><div class="collection-layout"><section class="collection-panel"><div class="collection-tools"><input id="search" type="search" value="${esc(query)}" placeholder="搜索 key 或 description…" aria-label="搜索条目"><span id="result-count" class="muted"></span></div><div class="table-wrap"><table><thead><tr><th>KEY / DESCRIPTION</th><th>AI 读取</th><th>AI 修改</th></tr></thead><tbody id="entry-list"></tbody></table></div><div class="collection-caption">key + description 是可检索索引。正文和附件在磁盘上加密保存。</div></section><section id="editor" class="editor-panel"><div class="empty-editor"><span class="empty-symbol" aria-hidden="true">⌘</span><h2>打开一份资料</h2><p>选择左侧条目查看正文、附件和权限，<br>或者创建你的第一条记录。</p></div></section></div>`;
+    `<section class="page-heading"><div><p class="eyebrow">COLLECTION</p><h1>全部条目</h1><p class="muted">先找到需要的资料，再决定怎样使用。</p></div><button id="new-entry" class="button primary">＋ 新建条目</button></section><div class="collection-layout"><section class="collection-panel"><div class="collection-tools"><input id="search" type="search" value="${esc(query)}" placeholder="搜索 key 或 description…" aria-label="搜索条目"><label class="search-scope"><input id="search-body" type="checkbox" ${bodySearch ? "checked" : ""}>含正文</label><span id="result-count" class="muted"></span></div><div class="table-wrap"><table><thead><tr><th>KEY / DESCRIPTION</th><th>AI 读取</th><th>AI 修改</th></tr></thead><tbody id="entry-list"></tbody></table></div><div class="collection-caption">key + description 是可检索索引。正文和附件在磁盘上加密保存。</div></section><section id="editor" class="editor-panel"><div class="empty-editor"><span class="empty-symbol" aria-hidden="true">⌘</span><h2>打开一份资料</h2><p>选择左侧条目查看正文、附件和权限，<br>或者创建你的第一条记录。</p></div></section></div>`;
   $("#new-entry").onclick = () => {
     if (dirty && !confirm("放弃当前草稿？")) return;
     editor = null;
+    historyKey = "";
     draftAttachments = [];
     dirty = false;
     renderEditor(true);
   };
   $("#search").oninput = () => {
     query = field("#search");
+    bodyMatches = null;
+    searchSequence++;
     renderList();
+    clearTimeout(searchTimer);
+    if (bodySearch)
+      searchTimer = window.setTimeout(() => void run(refreshBodySearch), 250);
+  };
+  $("#search-body").onchange = () => {
+    bodySearch = $<HTMLInputElement>("#search-body").checked;
+    bodyMatches = null;
+    searchSequence++;
+    renderList();
+    if (bodySearch) void run(refreshBodySearch);
   };
   await refreshEntries();
 }
@@ -219,21 +249,47 @@ async function refreshEntries(): Promise<void> {
   entries = await api<Summary[]>("/api/entries");
   const count = document.querySelector("#entry-count");
   if (count) count.textContent = String(entries.length);
-  if (currentView === "entries") renderList();
+  if (currentView === "entries") {
+    renderList();
+    if (bodySearch) await refreshBodySearch();
+  }
+}
+async function refreshBodySearch(): Promise<void> {
+  if (!bodySearch || currentView !== "entries") return;
+  const sequence = ++searchSequence,
+    searched = query;
+  const hits = await api<Summary[]>(
+    "/api/entries?scope=body&q=" + encodeURIComponent(searched),
+  );
+  if (
+    sequence !== searchSequence ||
+    !state.authenticated ||
+    !bodySearch ||
+    currentView !== "entries" ||
+    searched !== query
+  )
+    return;
+  bodyMatches = new Set(hits.map((hit) => hit.key));
+  renderList();
 }
 function renderList(): void {
   const target = document.querySelector("#entry-list");
   if (!target) return;
   const q = query.toLowerCase();
   const selected = entries.filter((entry) =>
-    `${entry.key} ${entry.description}`.toLowerCase().includes(q),
+    bodySearch && q
+      ? (bodyMatches?.has(entry.key) ?? false)
+      : `${entry.key} ${entry.description}`.toLowerCase().includes(q),
   );
-  $("#result-count").textContent = `${selected.length} 个条目`;
+  $("#result-count").textContent =
+    bodySearch && q && bodyMatches === null
+      ? "检索中…"
+      : `${selected.length} 个条目`;
   target.innerHTML = selected.length
     ? selected
         .map(
           (entry) =>
-            `<tr class="${editor?.key === entry.key ? "selected" : ""}"><td><button class="entry-button" data-key="${esc(entry.key)}"><span class="entry-key">${esc(entry.key)}</span><span class="entry-description">${esc(entry.description)}</span>${entry.state !== "ready" ? `<span class="entry-warning">${statusLabels[entry.state] ?? esc(entry.state)}</span>` : ""}</button></td><td>${pill(entry.read_policy)}</td><td>${pill(entry.write_policy)}</td></tr>`,
+            `<tr class="${editor?.key === entry.key || historyKey === entry.key ? "selected" : ""}"><td><button class="entry-button" data-key="${esc(entry.key)}"><span class="entry-key">${esc(entry.key)}</span><span class="entry-description">${esc(entry.description)}</span>${entry.state !== "ready" ? `<span class="entry-warning">${statusLabels[entry.state] ?? esc(entry.state)}</span>` : ""}</button></td><td>${pill(entry.read_policy)}</td><td>${pill(entry.write_policy)}</td></tr>`,
         )
         .join("")
     : `<tr><td colspan="3"><div class="empty-list"><strong>${entries.length ? "没有匹配的条目" : "资料库还是空的"}</strong><p>${entries.length ? "试试其他 key 或内容说明。" : "从一份说明文档开始，熟悉保存与授权流程。"}</p></div></td></tr>`;
@@ -242,15 +298,10 @@ function renderList(): void {
       (button.onclick = () =>
         void run(async () => {
           if (dirty && !confirm("放弃当前草稿？")) return;
-          const entry = await api<Entry>(
-            `/api/entry?key=${encodeURIComponent(button.dataset.key!)}`,
-          );
-          editor = entry;
-          draftAttachments = entry.attachments || [];
-          dirty = false;
-          renderEditor(false);
-          renderList();
-          notice("");
+          const key = button.dataset.key!;
+          if (entries.find((item) => item.key === key)?.state !== "ready")
+            await openHistory(key);
+          else await openEntry(key);
         })),
   );
   if (editor) {
@@ -270,6 +321,36 @@ function renderList(): void {
     }
   }
 }
+async function openEntry(key: string): Promise<void> {
+  const entry = await api<Entry>(`/api/entry?key=${encodeURIComponent(key)}`);
+  if (currentView !== "entries" || !state.authenticated) return;
+  historyKey = "";
+  editor = entry;
+  draftAttachments = entry.attachments || [];
+  dirty = false;
+  renderEditor(false);
+  renderList();
+  notice("");
+}
+async function openHistory(key: string): Promise<void> {
+  editor = null;
+  draftAttachments = [];
+  dirty = false;
+  historyKey = key;
+  renderList();
+  await mountHistory($("#editor"), key, {
+    api,
+    run,
+    notice,
+    setDirty: (value) => {
+      dirty = value;
+    },
+    onSaved: async () => {
+      await refreshEntries();
+      await openEntry(key);
+    },
+  });
+}
 function renderEditor(isNew: boolean): void {
   const entry = editor;
   $("#editor").innerHTML =
@@ -284,11 +365,32 @@ function renderEditor(isNew: boolean): void {
       )
       .join(
         "",
-      )}</select></div><textarea id="entry-value" class="code-editor" rows="10" spellcheck="false" placeholder="在这里保存正文…">${esc(entry?.value ?? "")}</textarea><div class="attachment-heading"><label>附件 <span class="field-hint">每个最多 2 MiB</span></label><label for="upload" class="text-button">＋ 添加附件</label><input id="upload" type="file" multiple hidden></div><div id="attachments"></div><fieldset class="policy-fields"><legend>AI 访问权限</legend><div><label for="read-policy">读取正文 / 附件</label>${permissionSelect("read-policy", entry?.read_policy ?? "ask")}</div><div><label for="write-policy">修改内容</label>${permissionSelect("write-policy", entry?.write_policy ?? "ask")}</div></fieldset><footer class="editor-footer"><span class="muted">${entry ? `版本 ${esc(entry.revision.slice(0, 8))}` : "保存后生成首个加密版本"}</span><button type="submit" class="button primary">保存条目</button></footer></form>`;
+      )}</select></div><textarea id="entry-value" class="code-editor" rows="10" spellcheck="false" placeholder="在这里保存正文…">${esc(entry?.value ?? "")}</textarea><div class="preview-toolbar"><button id="preview-toggle" class="text-button" type="button">预览正文</button><span class="small muted">不执行 HTML，不加载外部图片</span></div><article id="body-preview" class="markdown-preview" hidden></article><div class="attachment-heading"><label>附件 <span class="field-hint">每个最多 2 MiB</span></label><label for="upload" class="text-button">＋ 添加附件</label><input id="upload" type="file" multiple hidden></div><div id="attachments"></div><fieldset class="policy-fields"><legend>AI 访问权限</legend><div><label for="read-policy">读取正文 / 附件</label>${permissionSelect("read-policy", entry?.read_policy ?? "ask")}</div><div><label for="write-policy">修改内容</label>${permissionSelect("write-policy", entry?.write_policy ?? "ask")}</div></fieldset><footer class="editor-footer"><span class="muted">${entry ? `版本 ${esc(entry.revision.slice(0, 8))}` : "保存后生成首个加密版本"}</span><button type="submit" class="button primary">保存条目</button></footer></form>${entry ? '<div class="editor-tools"><button id="show-history" class="button secondary" type="button">查看历史 / 恢复版本</button></div>' : ""}`;
+  if (entry)
+    $("#show-history").onclick = () =>
+      void run(async () => {
+        if (dirty && !confirm("放弃当前草稿并查看历史？")) return;
+        await openHistory(entry.key);
+      });
+  const updatePreview = () => {
+    $("#body-preview").innerHTML =
+      field("#entry-format") === "markdown"
+        ? renderMarkdown(field("#entry-value"))
+        : `<pre>${esc(field("#entry-value"))}</pre>`;
+  };
+  $("#preview-toggle").onclick = () => {
+    const preview = $("#body-preview"),
+      input = $("#entry-value");
+    preview.hidden = !preview.hidden;
+    input.hidden = !preview.hidden;
+    $("#preview-toggle").textContent = preview.hidden ? "预览正文" : "编辑正文";
+    if (!preview.hidden) updatePreview();
+  };
   renderAttachments();
   $("#entry-form").oninput = () => {
     dirty = true;
     $("#dirty-state").textContent = "未保存";
+    if (!$("#body-preview").hidden) updatePreview();
   };
   $("#entry-form").onsubmit = (event) => {
     event.preventDefault();
@@ -421,9 +523,37 @@ async function renderApprovals(): Promise<void> {
   $("#approval-count").textContent = String(requests.length);
 }
 async function renderSettings(): Promise<void> {
-  const clients = await api<Client[]>("/api/clients");
+  const [clients, device] = await Promise.all([
+    api<Client[]>("/api/clients"),
+    api<{ idle_lock_minutes: number }>("/api/settings"),
+  ]);
+  if (currentView !== "settings" || !state.authenticated) return;
   $("#view").innerHTML =
-    `<section class="page-heading"><div><p class="eyebrow">CONNECTIONS</p><h1>连接与设置</h1><p class="muted">每个 AI 客户端使用独立的接入凭据。</p></div></section><div class="settings-grid"><section class="settings-card"><h2>MCP 客户端</h2><p class="muted">本地地址 <code>${esc(location.origin)}/mcp</code></p><form id="client-form" class="client-form"><label class="sr-only" for="client-name">客户端名称</label><input id="client-name" required maxlength="120" placeholder="例如：本机 pi"><button class="button primary">创建接入凭据</button></form><div id="client-secret" hidden></div><div class="client-list">${clients.length ? clients.map((client) => `<div class="client-row"><div><strong>${esc(client.name)}</strong><p class="muted">创建于 ${new Date(client.created_at).toLocaleDateString()}</p></div><button class="text-button danger" data-revoke="${esc(client.id)}">撤销</button></div>`).join("") : '<p class="muted">还没有接入的客户端。</p>'}</div></section><section class="settings-card"><h2>这台电脑</h2><dl class="device-info"><dt>资料库目录</dt><dd class="mono">${esc(state.vault.directory)}</dd><dt>程序版本</dt><dd>${esc(state.version)}</dd><dt>文件变化</dt><dd>每 2 秒扫描；读取与保存前再次校验</dd><dt>自动启动 / 自动解锁</dt><dd>尚未实现，当前使用主密码手动解锁</dd></dl><p class="small muted">目录切换在锁定页面完成。系统凭据、自启动和完整历史恢复界面将在后续迭代接入。</p></section></div>`;
+    `<section class="page-heading"><div><p class="eyebrow">CONNECTIONS</p><h1>连接与设置</h1><p class="muted">每个 AI 客户端使用独立的接入凭据。</p></div></section><div class="settings-grid"><section class="settings-card"><h2>MCP 客户端</h2><p class="muted">本地地址 <code>${esc(location.origin)}/mcp</code></p><form id="client-form" class="client-form"><label class="sr-only" for="client-name">客户端名称</label><input id="client-name" required maxlength="120" placeholder="例如：本机 pi"><button class="button primary">创建接入凭据</button></form><div id="client-secret" hidden></div><div class="client-list">${clients.length ? clients.map((client) => `<div class="client-row"><div><strong>${esc(client.name)}</strong><p class="muted">创建于 ${new Date(client.created_at).toLocaleDateString()}</p></div><button class="text-button danger" data-revoke="${esc(client.id)}">撤销</button></div>`).join("") : '<p class="muted">还没有接入的客户端。</p>'}</div></section><section class="settings-card"><h2>这台电脑</h2><dl class="device-info"><dt>资料库目录</dt><dd class="mono">${esc(state.vault.directory)}</dd><dt>程序版本</dt><dd>${esc(state.version)}</dd><dt>文件变化</dt><dd>每 2 秒扫描；读取与保存前再次校验</dd><dt>自动启动 / 自动解锁</dt><dd>尚未实现，当前使用主密码手动解锁</dd></dl><p class="small muted">目录切换在锁定页面完成。系统凭据与自启动仍待实现。</p><form id="idle-form"><label for="idle-minutes">网页无操作后自动锁定（分钟）</label><input id="idle-minutes" type="number" min="0" max="1440" value="${device.idle_lock_minutes}" required><p class="small muted">0 表示关闭。只计算网页操作，后台轮询和 MCP 请求不会续期。</p><button class="button secondary" type="submit">保存锁定设置</button></form></section><section class="settings-card"><h2>备份与恢复</h2><p class="muted">备份包含明文索引、加密正文、附件及全部历史，不含本机接入凭据。</p><button id="download-backup" class="button primary" type="button">下载加密资料库备份</button>${restoreForm(state.vault.directory)}</section></div>`;
+  $("#idle-form").onsubmit = (event) => {
+    event.preventDefault();
+    void run(async () => {
+      await api("/api/settings", {
+        idle_lock_minutes: Number(field("#idle-minutes")),
+      });
+      notice("本机自动锁定设置已保存。");
+    });
+  };
+  $("#download-backup").onclick = () =>
+    void run(async () => {
+      const button = $<HTMLButtonElement>("#download-backup");
+      button.disabled = true;
+      try {
+        await backup(state.csrf);
+        notice("已生成备份，请保留下载文件与主密码。");
+      } finally {
+        if (button.isConnected) button.disabled = false;
+      }
+    });
+  bindRestore(api, run, async () => {
+    await refreshState(true);
+    notice("备份已恢复，请使用备份的主密码重新解锁。");
+  });
   $("#client-form").onsubmit = (event) => {
     event.preventDefault();
     void run(async () => {
@@ -479,6 +609,25 @@ async function refreshState(force = false): Promise<void> {
     issues.hidden = state.vault.issues.length === 0;
     issues.textContent = state.vault.issues.join("；");
   }
+}
+let lastActivity = 0;
+for (const name of ["pointerdown", "keydown", "input", "wheel"]) {
+  window.addEventListener(
+    name,
+    (event) => {
+      if (
+        !event.isTrusted ||
+        !state?.authenticated ||
+        Date.now() - lastActivity < 15000
+      )
+        return;
+      lastActivity = Date.now();
+      void api("/api/activity", {}).catch(() => {
+        lastActivity = 0;
+      });
+    },
+    { passive: true },
+  );
 }
 window.addEventListener("beforeunload", (event) => {
   if (dirty) {
