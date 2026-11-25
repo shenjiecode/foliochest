@@ -123,6 +123,7 @@ func restartDeviceBrowser(t *testing.T, original *testBrowser, c *memoryCredenti
 	}
 	app.device.credentials = c
 	app.device.startup = &memoryStartup{}
+	app.SystemEvent(platform.SystemEvent{Available: true})
 	app.TryAutoUnlock(context.Background())
 	ts.Config.Handler = app
 	ts.Start()

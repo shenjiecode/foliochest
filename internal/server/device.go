@@ -136,6 +136,11 @@ func (s *Server) TryAutoUnlock(ctx context.Context) {
 	if !d.record.Enabled {
 		return
 	}
+	sequence, err := s.beginUnlock(true)
+	if err != nil {
+		d.notice = err.Error()
+		return
+	}
 	root, err := platform.Canonical(s.Vault.Status().Directory)
 	if err != nil || root != d.record.Directory {
 		d.notice = "资料库目录已变化，本次未自动解锁；请使用主密码并重新授权设备。"
@@ -149,6 +154,10 @@ func (s *Server) TryAutoUnlock(ctx context.Context) {
 	defer clear(raw)
 	if err = s.Vault.UnlockDevice(raw); err != nil {
 		d.notice = "设备凭据与资料库不匹配或文件不完整，请使用主密码并重新授权设备。"
+		return
+	}
+	if err = s.finishUnlock(sequence); err != nil {
+		d.notice = err.Error()
 		return
 	}
 	binding, err := s.Vault.Binding()
@@ -317,6 +326,46 @@ func (s *Server) serveDevice(w http.ResponseWriter, r *http.Request) bool {
 		}
 		s.activity()
 		writeJSON(w, map[string]bool{"ok": true})
+	case "/api/vault/upgrade":
+		if !method(w, r, "POST") {
+			return true
+		}
+		var in struct {
+			Password  string `json:"password"`
+			Confirmed bool   `json:"confirmed"`
+		}
+		if !decode(w, r, &in) {
+			return true
+		}
+		defer func() { in.Password = "" }()
+		if !in.Confirmed {
+			apiError(w, errors.New("请先备份并确认已更新所有设备程序、暂停其他设备写入"), 400)
+			return true
+		}
+		if s.Vault.Status().Format != 1 {
+			apiError(w, errors.New("资料库不需要升级"), 409)
+			return true
+		}
+		if err := s.Vault.VerifyPassword(in.Password); err != nil {
+			apiError(w, err, 400)
+			return true
+		}
+		d := s.device
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		warning, err := s.disableDevice(r.Context())
+		s.clearTrustCookie(w)
+		if err != nil {
+			apiError(w, err, 500)
+			return true
+		}
+		if err = s.Vault.UpgradeFormat(in.Password); err != nil {
+			apiError(w, errors.New("格式升级未完成；本机自动解锁已关闭。"+err.Error()), 409)
+			return true
+		}
+		s.Access.Lock()
+		d.notice = warning
+		writeJSON(w, map[string]any{"ok": true, "warning": warning})
 	case "/api/vault/password":
 		if !method(w, r, "POST") {
 			return true

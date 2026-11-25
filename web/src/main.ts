@@ -1,4 +1,11 @@
 import "./recovery.css";
+import "./manage.css";
+import {
+  managementForms,
+  bindManagement,
+  upgradeForm,
+  bindUpgrade,
+} from "./manage";
 import { esc } from "./ui";
 import { mountHistory } from "./history";
 import { backup, bindRestore, restoreForm } from "./recovery";
@@ -26,7 +33,16 @@ type State = {
   csrf: string;
   version: string;
   device_notice: string;
+  system: {
+    available: boolean;
+    locked: boolean;
+    sleeping: boolean;
+    enabled: boolean;
+    message: string;
+    lock_reason: string;
+  };
   vault: {
+    format: number;
     directory: string;
     exists: boolean;
     unlocked: boolean;
@@ -71,6 +87,7 @@ let bodyMatches: Set<string> | null = null;
 let searchSequence = 0;
 let searchTimer = 0;
 let historyKey = "";
+let entryLoadSequence = 0;
 const labels: Record<Policy, string> = {
   allow: "免确认",
   ask: "需确认",
@@ -82,6 +99,7 @@ const statusLabels: Record<string, string> = {
   incomplete: "同步未完整",
   missing: "文件缺失",
   invalid: "校验失败",
+  deleted: "已删除，可恢复",
 };
 const $ = <T extends HTMLElement = HTMLElement>(selector: string): T =>
   document.querySelector<T>(selector)!;
@@ -141,6 +159,7 @@ function pill(policy: Policy): string {
   return `<span class="pill ${policy}">${labels[policy]}</span>`;
 }
 function clearSessionState(): void {
+  entryLoadSequence++;
   sessionEpoch++;
   entries = [];
   searchSequence++;
@@ -153,9 +172,12 @@ function clearSessionState(): void {
   draftAttachments = [];
   visibleToken = "";
 }
+function lockSystemNotice(): string {
+  return `${state.system?.lock_reason ? `<p class="inline-warning">${esc(state.system.lock_reason)}；资料库保持锁定，解锁系统不会重开资料库。</p>` : ""}${state.system?.enabled && !state.system.available ? `<p class="small muted">${esc(state.system.message)}</p>` : ""}`;
+}
 function renderLock(): void {
   clearSessionState();
-  root.innerHTML = `<main class="lock-layout"><section class="intro"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="intro-copy"><p class="eyebrow">YOUR LOCAL KNOWLEDGE VAULT</p><h1>资料留在本地，<br>使用由你决定。</h1><p class="intro-description">用 key 和 description 找到内容。<br>密码、文档与附件加密保存，AI 按你的权限使用。</p></div><div class="intro-footer">Go 后台 · 本地网页 · MCP 接入</div></section><section class="unlock-area"><div class="unlock-card"><p class="eyebrow">${state.vault.exists ? "WELCOME BACK" : "GET STARTED"}</p><h2>${state.vault.exists ? "解锁资料库" : "创建你的资料库"}</h2><p class="muted">${state.vault.exists ? (state.vault.unlocked ? "后台已解锁；此浏览器仍需输入主密码授权。" : "输入主密码，开启本次本地会话。") : "先选择一个空目录，再设置主密码。"}</p>${state.device_notice ? `<p class="inline-warning">${esc(state.device_notice)}</p>` : ""}<div id="notice" class="notice" hidden role="status"></div><label for="directory">资料库目录</label><div class="directory-row"><input id="directory" value="${esc(state.vault.directory)}" spellcheck="false"><button id="select-directory" class="button secondary" type="button">切换</button></div><form id="unlock-form"><input type="text" name="username" autocomplete="username" value="Keyfolio" class="sr-only" aria-label="资料库" tabindex="-1"><label for="password">主密码</label><input id="password" type="password" autocomplete="${state.vault.exists ? "current-password" : "new-password"}" minlength="12" required placeholder="${state.vault.exists ? "输入主密码" : "至少 12 个字符，建议使用长口令"}">${state.vault.exists ? "" : '<label for="confirm-password">确认主密码</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required placeholder="再次输入主密码">'}<button class="button primary full" type="submit">${state.vault.exists ? "解锁资料库" : "创建并解锁"} <span aria-hidden="true">→</span></button></form>${restoreForm(state.vault.directory)}<p class="preview-note">开发预览 · 请先使用合成测试数据</p></div><p class="local-caption">网页和文件均由这台电脑上的服务提供。</p></section></main>`;
+  root.innerHTML = `<main class="lock-layout"><section class="intro"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="intro-copy"><p class="eyebrow">YOUR LOCAL KNOWLEDGE VAULT</p><h1>资料留在本地，<br>使用由你决定。</h1><p class="intro-description">用 key 和 description 找到内容。<br>密码、文档与附件加密保存，AI 按你的权限使用。</p></div><div class="intro-footer">Go 后台 · 本地网页 · MCP 接入</div></section><section class="unlock-area"><div class="unlock-card"><p class="eyebrow">${state.vault.exists ? "WELCOME BACK" : "GET STARTED"}</p><h2>${state.vault.exists ? "解锁资料库" : "创建你的资料库"}</h2><p class="muted">${state.vault.exists ? (state.vault.unlocked ? "后台已解锁；此浏览器仍需输入主密码授权。" : "输入主密码，开启本次本地会话。") : "先选择一个空目录，再设置主密码。"}</p>${state.device_notice ? `<p class="inline-warning">${esc(state.device_notice)}</p>` : ""}<div id="lock-system-status">${lockSystemNotice()}</div><div id="notice" class="notice" hidden role="status"></div><label for="directory">资料库目录</label><div class="directory-row"><input id="directory" value="${esc(state.vault.directory)}" spellcheck="false"><button id="select-directory" class="button secondary" type="button">切换</button></div><form id="unlock-form"><input type="text" name="username" autocomplete="username" value="Keyfolio" class="sr-only" aria-label="资料库" tabindex="-1"><label for="password">主密码</label><input id="password" type="password" autocomplete="${state.vault.exists ? "current-password" : "new-password"}" minlength="12" required placeholder="${state.vault.exists ? "输入主密码" : "至少 12 个字符，建议使用长口令"}">${state.vault.exists ? "" : '<label for="confirm-password">确认主密码</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required placeholder="再次输入主密码">'}<button class="button primary full" type="submit">${state.vault.exists ? "解锁资料库" : "创建并解锁"} <span aria-hidden="true">→</span></button></form>${restoreForm(state.vault.directory)}<p class="preview-note">开发预览 · 请先使用合成测试数据</p></div><p class="local-caption">网页和文件均由这台电脑上的服务提供。</p></section></main>`;
   bindRestore(api, run, async () => {
     await refreshState(true);
     notice("备份已恢复，请使用备份的主密码重新解锁。");
@@ -192,7 +214,7 @@ function renderLock(): void {
   };
 }
 function renderShell(): void {
-  root.innerHTML = `<div class="workspace"><aside class="sidebar"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="workspace-label">个人工作区</div><nav aria-label="主导航"><button data-view="entries" class="nav-button active"><span>全部条目</span><span id="entry-count" class="count">0</span></button><button data-view="approvals" class="nav-button"><span>待审批</span><span id="approval-count" class="count">0</span></button><button data-view="settings" class="nav-button"><span>连接与设置</span><span aria-hidden="true">↗</span></button></nav><div class="sidebar-bottom"><div class="local-status"><span class="status-dot"></span>本地服务运行中</div><p>仅同步资料库文件<br>解锁与授权留在本机</p><button id="lock-button" class="button secondary full">锁定资料库</button></div></aside><main class="main-area"><header class="topbar"><span>PERSONAL / VAULT</span><span class="topbar-right">开发预览 <span class="dot-separator">·</span> 本地解锁</span></header><div id="notice" class="notice" hidden role="status"></div><div id="sync-issues" class="sync-issues" hidden></div><div id="view"></div></main></div>`;
+  root.innerHTML = `<div class="workspace"><aside class="sidebar"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="workspace-label">个人工作区</div><nav aria-label="主导航"><button data-view="entries" class="nav-button active"><span>全部条目</span><span id="entry-count" class="count">0</span></button><button data-view="trash" class="nav-button"><span>回收站</span></button><button data-view="approvals" class="nav-button"><span>待审批</span><span id="approval-count" class="count">0</span></button><button data-view="settings" class="nav-button"><span>连接与设置</span><span aria-hidden="true">↗</span></button></nav><div class="sidebar-bottom"><div class="local-status"><span class="status-dot"></span>本地服务运行中</div><p>仅同步资料库文件<br>解锁与授权留在本机</p><button id="lock-button" class="button secondary full">锁定资料库</button></div></aside><main class="main-area"><header class="topbar"><span>PERSONAL / VAULT</span><span class="topbar-right">开发预览 <span class="dot-separator">·</span> 本地解锁</span></header><div id="notice" class="notice" hidden role="status"></div><div id="sync-issues" class="sync-issues" hidden></div><div id="view"></div></main></div>`;
   document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(
     (button) =>
       (button.onclick = () =>
@@ -217,6 +239,8 @@ function renderShell(): void {
     });
 }
 async function renderView(): Promise<void> {
+  entryLoadSequence++;
+  historyKey = "";
   document
     .querySelectorAll<HTMLButtonElement>("[data-view]")
     .forEach((button) =>
@@ -231,9 +255,16 @@ async function renderView(): Promise<void> {
     await renderSettings();
     return;
   }
+  const trash = currentView === "trash";
+  if (trash) {
+    bodySearch = false;
+    bodyMatches = null;
+  }
   $("#view").innerHTML =
-    `<section class="page-heading"><div><p class="eyebrow">COLLECTION</p><h1>全部条目</h1><p class="muted">先找到需要的资料，再决定怎样使用。</p></div><button id="new-entry" class="button primary">＋ 新建条目</button></section><div class="collection-layout"><section class="collection-panel"><div class="collection-tools"><input id="search" type="search" value="${esc(query)}" placeholder="搜索 key 或 description…" aria-label="搜索条目"><label class="search-scope"><input id="search-body" type="checkbox" ${bodySearch ? "checked" : ""}>含正文</label><span id="result-count" class="muted"></span></div><div class="table-wrap"><table><thead><tr><th>KEY / DESCRIPTION</th><th>AI 读取</th><th>AI 修改</th></tr></thead><tbody id="entry-list"></tbody></table></div><div class="collection-caption">key + description 是可检索索引。正文和附件在磁盘上加密保存。</div></section><section id="editor" class="editor-panel"><div class="empty-editor"><span class="empty-symbol" aria-hidden="true">⌘</span><h2>打开一份资料</h2><p>选择左侧条目查看正文、附件和权限，<br>或者创建你的第一条记录。</p></div></section></div>`;
+    `<section class="page-heading"><div><p class="eyebrow">${trash ? "TRASH / RECOVERY" : "COLLECTION"}</p><h1>${trash ? "回收站" : "全部条目"}</h1><p class="muted">${trash ? "历史仍保留，选择删除前的版本恢复。删除不释放空间，也不是安全擦除。" : "先找到需要的资料，再决定怎样使用。"}</p></div><button id="new-entry" class="button primary" ${trash ? "hidden" : ""}>＋ 新建条目</button></section><div class="collection-layout"><section class="collection-panel"><div class="collection-tools"><input id="search" type="search" value="${esc(query)}" placeholder="搜索 key 或 description…" aria-label="搜索条目"><label class="search-scope" ${trash ? "hidden" : ""}><input id="search-body" type="checkbox" ${bodySearch ? "checked" : ""}>含正文</label><span id="result-count" class="muted"></span></div><div class="table-wrap"><table><thead><tr><th>KEY / DESCRIPTION</th><th>${trash ? "恢复后读取" : "AI 读取"}</th><th>${trash ? "恢复后修改" : "AI 修改"}</th></tr></thead><tbody id="entry-list"></tbody></table></div><div class="collection-caption">${trash ? "回收站仅向人类网页提供；AI 当前读取接口不能取回已删除正文。" : "key + description 是可检索索引。正文和附件在磁盘上加密保存。"}</div></section><section id="editor" class="editor-panel"><div class="empty-editor"><span class="empty-symbol" aria-hidden="true">⌘</span><h2>${trash ? "恢复已删除的资料" : "打开一份资料"}</h2><p>${trash ? "选择左侧条目查看删除记录与历史，<br>再选择一个内容版本恢复。" : "选择左侧条目查看正文、附件和权限，<br>或者创建你的第一条记录。"}</p></div></section></div>`;
   $("#new-entry").onclick = () => {
+    if (currentView !== "entries") return;
+    entryLoadSequence++;
     if (dirty && !confirm("放弃当前草稿？")) return;
     editor = null;
     historyKey = "";
@@ -260,10 +291,18 @@ async function renderView(): Promise<void> {
   await refreshEntries();
 }
 async function refreshEntries(): Promise<void> {
-  entries = await api<Summary[]>("/api/entries");
+  const view = currentView;
+  const result = await api<Summary[]>(
+    "/api/entries" + (view === "trash" ? "?scope=trash" : ""),
+  );
+  if (view !== currentView) return;
+  entries = result;
   const count = document.querySelector("#entry-count");
-  if (count) count.textContent = String(entries.length);
-  if (currentView === "entries") {
+  if (count)
+    count.textContent = String(
+      view === "trash" ? state.vault.entries : entries.length,
+    );
+  if (currentView === "entries" || currentView === "trash") {
     renderList();
     if (bodySearch) await refreshBodySearch();
   }
@@ -306,7 +345,7 @@ function renderList(): void {
             `<tr class="${editor?.key === entry.key || historyKey === entry.key ? "selected" : ""}"><td><button class="entry-button" data-key="${esc(entry.key)}"><span class="entry-key">${esc(entry.key)}</span><span class="entry-description">${esc(entry.description)}</span>${entry.state !== "ready" ? `<span class="entry-warning">${statusLabels[entry.state] ?? esc(entry.state)}</span>` : ""}</button></td><td>${pill(entry.read_policy)}</td><td>${pill(entry.write_policy)}</td></tr>`,
         )
         .join("")
-    : `<tr><td colspan="3"><div class="empty-list"><strong>${entries.length ? "没有匹配的条目" : "资料库还是空的"}</strong><p>${entries.length ? "试试其他 key 或内容说明。" : "从一份说明文档开始，熟悉保存与授权流程。"}</p></div></td></tr>`;
+    : `<tr><td colspan="3"><div class="empty-list"><strong>${entries.length ? "没有匹配的条目" : currentView === "trash" ? "回收站是空的" : "资料库还是空的"}</strong><p>${entries.length ? "试试其他 key 或内容说明。" : currentView === "trash" ? "删除的条目会出现在这里，历史仍可恢复。" : "从一份说明文档开始，熟悉保存与授权流程。"}</p></div></td></tr>`;
   target.querySelectorAll<HTMLButtonElement>("[data-key]").forEach(
     (button) =>
       (button.onclick = () =>
@@ -336,8 +375,31 @@ function renderList(): void {
   }
 }
 async function openEntry(key: string): Promise<void> {
-  const entry = await api<Entry>(`/api/entry?key=${encodeURIComponent(key)}`);
-  if (currentView !== "entries" || !state.authenticated) return;
+  const panel = document.querySelector<HTMLElement>("#editor");
+  if (currentView !== "entries" || !state.authenticated || !panel) return;
+  const sequence = ++entryLoadSequence;
+  editor = null;
+  draftAttachments = [];
+  dirty = false;
+  historyKey = key;
+  panel.innerHTML = '<div class="empty-editor"><p>正在读取条目…</p></div>';
+  renderList();
+  let entry: Entry;
+  try {
+    entry = await api<Entry>(`/api/entry?key=${encodeURIComponent(key)}`);
+  } catch (error) {
+    if (sequence === entryLoadSequence && panel.isConnected)
+      panel.innerHTML =
+        '<div class="empty-editor"><p>暂时无法读取条目，请刷新列表或查看同步状态后重试。</p></div>';
+    throw error;
+  }
+  if (
+    sequence !== entryLoadSequence ||
+    currentView !== "entries" ||
+    !state.authenticated ||
+    !panel.isConnected
+  )
+    return;
   historyKey = "";
   editor = entry;
   draftAttachments = entry.attachments || [];
@@ -347,23 +409,54 @@ async function openEntry(key: string): Promise<void> {
   notice("");
 }
 async function openHistory(key: string): Promise<void> {
+  entryLoadSequence++;
   editor = null;
   draftAttachments = [];
   dirty = false;
   historyKey = key;
   renderList();
   await mountHistory($("#editor"), key, {
+    vaultFormat: state.vault.format,
     api,
     run,
     notice,
     setDirty: (value) => {
       dirty = value;
     },
-    onSaved: async () => {
-      await refreshEntries();
-      await openEntry(key);
+    onSaved: async (target, deleted = false) => {
+      await entryChanged(target, deleted);
     },
   });
+}
+async function entryChanged(key: string, deleted: boolean): Promise<void> {
+  dirty = false;
+  editor = null;
+  draftAttachments = [];
+  historyKey = "";
+  query = "";
+  bodyMatches = null;
+  const view = deleted ? "trash" : "entries";
+  currentView = view;
+  let sequence = entryLoadSequence;
+  location.hash = deleted ? "trash" : "";
+  await refreshState();
+  if (
+    !state.authenticated ||
+    currentView !== view ||
+    sequence !== entryLoadSequence
+  )
+    return;
+  const rendered = renderView();
+  sequence = entryLoadSequence;
+  await rendered;
+  if (
+    !state.authenticated ||
+    currentView !== view ||
+    sequence !== entryLoadSequence
+  )
+    return;
+  if (deleted) await openHistory(key);
+  else await openEntry(key);
 }
 function renderEditor(isNew: boolean): void {
   const entry = editor;
@@ -379,7 +472,15 @@ function renderEditor(isNew: boolean): void {
       )
       .join(
         "",
-      )}</select></div><textarea id="entry-value" class="code-editor" rows="10" spellcheck="false" placeholder="在这里保存正文…">${esc(entry?.value ?? "")}</textarea><div class="preview-toolbar"><button id="preview-toggle" class="text-button" type="button">预览正文</button><span class="small muted">不执行 HTML，不加载外部图片</span></div><article id="body-preview" class="markdown-preview" hidden></article><div class="attachment-heading"><label>附件 <span class="field-hint">每个最多 2 MiB</span></label><label for="upload" class="text-button">＋ 添加附件</label><input id="upload" type="file" multiple hidden></div><div id="attachments"></div><fieldset class="policy-fields"><legend>AI 访问权限</legend><div><label for="read-policy">读取正文 / 附件</label>${permissionSelect("read-policy", entry?.read_policy ?? "ask")}</div><div><label for="write-policy">修改内容</label>${permissionSelect("write-policy", entry?.write_policy ?? "ask")}</div></fieldset><footer class="editor-footer"><span class="muted">${entry ? `版本 ${esc(entry.revision.slice(0, 8))}` : "保存后生成首个加密版本"}</span><button type="submit" class="button primary">保存条目</button></footer></form>${entry ? '<div class="editor-tools"><button id="show-history" class="button secondary" type="button">查看历史 / 恢复版本</button></div>' : ""}`;
+      )}</select></div><textarea id="entry-value" class="code-editor" rows="10" spellcheck="false" placeholder="在这里保存正文…">${esc(entry?.value ?? "")}</textarea><div class="preview-toolbar"><button id="preview-toggle" class="text-button" type="button">预览正文</button><span class="small muted">不执行 HTML，不加载外部图片</span></div><article id="body-preview" class="markdown-preview" hidden></article><div class="attachment-heading"><label>附件 <span class="field-hint">每个最多 2 MiB</span></label><label for="upload" class="text-button">＋ 添加附件</label><input id="upload" type="file" multiple hidden></div><div id="attachments"></div><fieldset class="policy-fields"><legend>AI 访问权限</legend><div><label for="read-policy">读取正文 / 附件</label>${permissionSelect("read-policy", entry?.read_policy ?? "ask")}</div><div><label for="write-policy">修改内容</label>${permissionSelect("write-policy", entry?.write_policy ?? "ask")}</div></fieldset><footer class="editor-footer"><span class="muted">${entry ? `版本 ${esc(entry.revision.slice(0, 8))}` : "保存后生成首个加密版本"}</span><button type="submit" class="button primary">保存条目</button></footer></form>${entry ? '<div class="editor-tools"><button id="show-history" class="button secondary" type="button">查看历史 / 恢复版本</button></div>' : ""}${entry ? managementForms(entry.key, state.vault.format) : ""}`;
+  if (entry)
+    bindManagement($("#editor"), entry.key, entry.revision, {
+      api,
+      run,
+      notice,
+      isDirty: () => dirty,
+      onChanged: entryChanged,
+    });
   if (entry)
     $("#show-history").onclick = () =>
       void run(async () => {
@@ -409,8 +510,15 @@ function renderEditor(isNew: boolean): void {
   $("#entry-form").onsubmit = (event) => {
     event.preventDefault();
     void run(async () => {
+      const form = $("#entry-form"),
+        sequence = entryLoadSequence;
+      const prior = [
+        ...$("#editor").querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+          "input,button,select,textarea",
+        ),
+      ].map((el) => [el, el.disabled] as const);
       const button = $<HTMLButtonElement>("#entry-form button[type=submit]");
-      button.disabled = true;
+      prior.forEach(([el]) => (el.disabled = true));
       button.textContent = "保存中…";
       try {
         const key = field("#entry-key");
@@ -428,7 +536,12 @@ function renderEditor(isNew: boolean): void {
             },
           ],
         });
-        editor = await api<Entry>(`/api/entry?key=${encodeURIComponent(key)}`);
+        if (!form.isConnected || sequence !== entryLoadSequence) return;
+        const saved = await api<Entry>(
+          `/api/entry?key=${encodeURIComponent(key)}`,
+        );
+        if (!form.isConnected || sequence !== entryLoadSequence) return;
+        editor = saved;
         dirty = false;
         draftAttachments = editor.attachments || [];
         renderEditor(false);
@@ -439,19 +552,34 @@ function renderEditor(isNew: boolean): void {
           button.disabled = false;
           button.textContent = "保存条目";
         }
+        prior.forEach(([el, disabled]) => {
+          if (el.isConnected) el.disabled = disabled;
+        });
       }
     });
   };
   $("#upload").onchange = () =>
     void run(async () => {
-      const input = $<HTMLInputElement>("#upload");
+      const input = $<HTMLInputElement>("#upload"),
+        sequence = entryLoadSequence,
+        epoch = sessionEpoch;
       const files = [...(input.files || [])];
       for (const file of files) {
         if (file.size > 2 * 1024 * 1024)
           throw new Error(`附件 ${file.name} 超过 2 MiB`);
         if (draftAttachments.some((item) => item.name === file.name))
           throw new Error(`已存在同名附件：${file.name}，请先移除旧附件`);
+        dirty = true;
+        $("#dirty-state").textContent = "正在读取附件…";
         const bytes = new Uint8Array(await file.arrayBuffer());
+        if (
+          !input.isConnected ||
+          sequence !== entryLoadSequence ||
+          epoch !== sessionEpoch
+        ) {
+          bytes.fill(0);
+          return;
+        }
         let binary = "";
         for (let i = 0; i < bytes.length; i += 16384)
           binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
@@ -539,12 +667,20 @@ async function renderApprovals(): Promise<void> {
 async function renderSettings(): Promise<void> {
   const [clients, device, security] = await Promise.all([
     api<Client[]>("/api/clients"),
-    api<{ idle_lock_minutes: number }>("/api/settings"),
+    api<{ idle_lock_minutes: number; lock_on_system_events: boolean }>(
+      "/api/settings",
+    ),
     api<DeviceState>("/api/device"),
   ]);
   if (currentView !== "settings" || !state.authenticated) return;
   $("#view").innerHTML =
-    `<section class="page-heading"><div><p class="eyebrow">CONNECTIONS</p><h1>连接与设置</h1><p class="muted">每个 AI 客户端使用独立的接入凭据。</p></div></section><div class="settings-grid"><section class="settings-card"><h2>MCP 客户端</h2><p class="muted">本地地址 <code>${esc(location.origin)}/mcp</code></p><form id="client-form" class="client-form"><label class="sr-only" for="client-name">客户端名称</label><input id="client-name" required maxlength="120" placeholder="例如：本机 pi"><button class="button primary">创建接入凭据</button></form><div id="client-secret" hidden></div><div class="client-list">${clients.length ? clients.map((client) => `<div class="client-row"><div><strong>${esc(client.name)}</strong><p class="muted">创建于 ${new Date(client.created_at).toLocaleDateString()}</p></div><button class="text-button danger" data-revoke="${esc(client.id)}">撤销</button></div>`).join("") : '<p class="muted">还没有接入的客户端。</p>'}</div></section><section class="settings-card"><h2>这台电脑</h2><dl class="device-info"><dt>资料库目录</dt><dd class="mono">${esc(state.vault.directory)}</dd><dt>程序版本</dt><dd>${esc(state.version)}</dd><dt>文件变化</dt><dd>每 2 秒扫描；读取与保存前再次校验</dd><dt>系统凭据</dt><dd>${esc(security.provider)}</dd></dl><p class="small muted">目录切换在锁定页面完成。启动与设备授权可在下方分别设置。</p><form id="idle-form"><label for="idle-minutes">网页无操作后自动锁定（分钟）</label><input id="idle-minutes" type="number" min="0" max="1440" value="${device.idle_lock_minutes}" required><p class="small muted">0 表示关闭。只计算网页操作，后台轮询和 MCP 请求不会续期。</p><button class="button secondary" type="submit">保存锁定设置</button></form></section><section class="settings-card"><h2>备份与恢复</h2><p class="muted">备份包含明文索引、加密正文、附件及全部历史，不含本机接入凭据。</p><button id="download-backup" class="button primary" type="button">下载加密资料库备份</button>${restoreForm(state.vault.directory)}</section>${deviceForms(security)}</div>`;
+    `<section class="page-heading"><div><p class="eyebrow">CONNECTIONS</p><h1>连接与设置</h1><p class="muted">每个 AI 客户端使用独立的接入凭据。</p></div></section><div class="settings-grid"><section class="settings-card"><h2>MCP 客户端</h2><p class="muted">本地地址 <code>${esc(location.origin)}/mcp</code></p><form id="client-form" class="client-form"><label class="sr-only" for="client-name">客户端名称</label><input id="client-name" required maxlength="120" placeholder="例如：本机 pi"><button class="button primary">创建接入凭据</button></form><div id="client-secret" hidden></div><div class="client-list">${clients.length ? clients.map((client) => `<div class="client-row"><div><strong>${esc(client.name)}</strong><p class="muted">创建于 ${new Date(client.created_at).toLocaleDateString()}</p></div><button class="text-button danger" data-revoke="${esc(client.id)}">撤销</button></div>`).join("") : '<p class="muted">还没有接入的客户端。</p>'}</div></section><section class="settings-card"><h2>这台电脑</h2><dl class="device-info"><dt>资料库目录</dt><dd class="mono">${esc(state.vault.directory)}</dd><dt>程序版本</dt><dd>${esc(state.version)}</dd><dt>文件变化</dt><dd>每 2 秒扫描；读取与保存前再次校验</dd><dt>系统凭据</dt><dd>${esc(security.provider)}</dd></dl><p class="small muted">目录切换在锁定页面完成。启动与设备授权可在下方分别设置。</p><form id="idle-form"><label for="idle-minutes">网页无操作后自动锁定（分钟）</label><input id="idle-minutes" type="number" min="0" max="1440" value="${device.idle_lock_minutes}" required><p class="small muted">0 表示关闭。只计算网页操作，后台轮询和 MCP 请求不会续期。</p><label class="system-check device-check"><input id="system-lock" type="checkbox" ${device.lock_on_system_events ? "checked" : ""}><span>系统锁屏或休眠时锁定资料库（默认开启）</span></label><p id="system-status" class="small muted system-message">${esc(state.system?.message ?? "")}</p><p class="small muted">监测中断或进程停顿超过 15 秒也会锁定；通知处理有延迟，不承诺休眠前彻底擦除内存。</p><button class="button secondary" type="submit">保存锁定设置</button></form></section><section class="settings-card"><h2>备份与恢复</h2><p class="muted">备份包含明文索引、加密正文、附件及全部历史，不含本机接入凭据。</p><button id="download-backup" class="button primary" type="button">下载加密资料库备份</button>${restoreForm(state.vault.directory)}</section>${upgradeForm(state.vault.format)}${deviceForms(security)}</div>`;
+  bindUpgrade(api, run, async (warning) => {
+    await refreshState(true);
+    notice(
+      "已升级为格式 2，请使用原主密码解锁；设备授权需要重新开启。" + warning,
+    );
+  });
   bindDevice(
     api,
     run,
@@ -562,7 +698,9 @@ async function renderSettings(): Promise<void> {
     void run(async () => {
       await api("/api/settings", {
         idle_lock_minutes: Number(field("#idle-minutes")),
+        lock_on_system_events: $<HTMLInputElement>("#system-lock").checked,
       });
+      await refreshState();
       notice("本机自动锁定设置已保存。");
     });
   };
@@ -628,12 +766,16 @@ async function refreshState(force = false): Promise<void> {
   }
   if (!state.authenticated) {
     if (force || previous !== false) renderLock();
+    const systemNotice = document.querySelector("#lock-system-status");
+    if (systemNotice) systemNotice.innerHTML = lockSystemNotice();
     if (sessionChanged && previous)
       notice("网页会话已更新，旧草稿与输入内容已清除。");
     return;
   }
   if (force || !previous) {
-    currentView = ["approvals", "settings"].includes(location.hash.slice(1))
+    currentView = ["approvals", "settings", "trash"].includes(
+      location.hash.slice(1),
+    )
       ? location.hash.slice(1)
       : "entries";
     renderShell();
@@ -641,6 +783,8 @@ async function refreshState(force = false): Promise<void> {
     if (sessionChanged && previous)
       notice("网页会话已更新，旧草稿与输入内容已清除。");
   }
+  const systemMessage = document.querySelector<HTMLElement>("#system-status");
+  if (systemMessage) systemMessage.textContent = state.system?.message ?? "";
   const issues = document.querySelector<HTMLElement>("#sync-issues");
   if (issues) {
     issues.hidden = state.vault.issues.length === 0;
@@ -673,7 +817,9 @@ window.addEventListener("beforeunload", (event) => {
   }
 });
 window.addEventListener("hashchange", () => {
-  const view = ["approvals", "settings"].includes(location.hash.slice(1))
+  const view = ["approvals", "settings", "trash"].includes(
+    location.hash.slice(1),
+  )
     ? location.hash.slice(1)
     : "entries";
   if (state?.authenticated && currentView !== view && !dirty) {

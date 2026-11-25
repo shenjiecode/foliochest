@@ -21,7 +21,7 @@ func (v *Vault) completeSnapshot() error {
 		return errors.New("存在未通过校验的文件，请等待同步完整；也可先手动复制整个资料库目录保留原件")
 	}
 	for _, it := range v.items {
-		if it.state != "ready" && it.state != "conflict" {
+		if it.state != "ready" && it.state != "conflict" && it.state != "deleted" {
 			return ErrUnavailable
 		}
 	}

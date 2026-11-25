@@ -132,10 +132,34 @@ func (v *Vault) ChangePassword(current, next string) error {
 	if err := v.completeSnapshot(); err != nil {
 		return err
 	}
-	c, err := wrapConfig(next, v.cfg.VaultID, v.key)
+	c, err := wrapVersion(next, v.cfg.VaultID, v.key, v.cfg.Format)
 	if err != nil {
 		return err
 	}
+	return v.replaceConfig(c)
+}
+
+// UpgradeFormat is explicitly confirmed by a human after backing up and updating
+// every device. It does not rewrite old records or silently migrate on unlock.
+func (v *Vault) UpgradeFormat(password string) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if err := v.verifyPassword(password); err != nil {
+		return err
+	}
+	if v.cfg.Format == FormatVersion {
+		return errors.New("资料库已经使用最新格式")
+	}
+	if err := v.completeSnapshot(); err != nil {
+		return err
+	}
+	c, err := wrapVersion(password, v.cfg.VaultID, v.key, FormatVersion)
+	if err != nil {
+		return err
+	}
+	return v.replaceConfig(c)
+}
+func (v *Vault) replaceConfig(c config) error {
 	raw, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err

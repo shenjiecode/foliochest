@@ -60,15 +60,19 @@ func clone[T any](in T) T {
 	return out
 }
 func (s *Service) expire() {
+	now := s.now()
 	for id, p := range s.requests {
-		if s.now().After(p.ExpiresAt) || p.generation != s.Vault.Generation() {
+		// Linux monotonic time excludes suspend. Expire on whichever clock
+		// reaches the deadline first; a backwards wall jump cannot extend it.
+		overdue := max(now.Sub(p.ExpiresAt), now.Round(0).Sub(p.ExpiresAt.Round(0)))
+		if overdue > 0 || p.generation != s.Vault.Generation() {
 			p.State = "expired"
 			p.Reads = nil
 			p.Changes = nil
 			p.result = Result{RequestID: id, State: "expired", Message: "请求已过期或资料库解锁会话已变化"}
 			p.bufferedBytes = 0
 		}
-		if s.now().Sub(p.ExpiresAt) > requestTTL {
+		if overdue > requestTTL {
 			delete(s.requests, id)
 		}
 	}

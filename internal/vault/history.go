@@ -20,6 +20,7 @@ type History struct {
 }
 type RestoreChange struct {
 	Key            string   `json:"key"`
+	TargetKey      string   `json:"target_key,omitempty"`
 	ExpectedHeads  []string `json:"expected_heads"`
 	SourceRevision string   `json:"source_revision"`
 	Description    *string  `json:"description,omitempty"`
@@ -128,45 +129,33 @@ func (v *Vault) Restore(in RestoreChange) (Summary, error) {
 	if err := v.scan(); err != nil {
 		return Summary{}, err
 	}
-	it, ok := v.items[in.Key]
-	if !ok {
-		return Summary{}, ErrNotFound
+	it, actual, read, write, err := v.reviewHeads(in.Key, in.ExpectedHeads)
+	if err != nil {
+		return Summary{}, err
 	}
-	if it.state != "ready" && it.state != "conflict" {
-		return Summary{}, ErrUnavailable
-	}
-	actual := []string{}
 	id := it.heads[0].meta.EntryID
-	read, write := Allow, Allow
-	for _, h := range it.heads {
-		if h.meta.EntryID != id {
-			return Summary{}, errors.New("这是不同条目的同名冲突，暂不支持自动合并；请保留备份")
-		}
-		if v.batchStates[h.batch.BatchID] != 2 {
-			return Summary{}, ErrUnavailable
-		}
-		actual = append(actual, h.meta.Revision)
-		read = restrictive(read, h.meta.ReadPolicy)
-		write = restrictive(write, h.meta.WritePolicy)
+	target := in.Key
+	if in.TargetKey != "" {
+		target = in.TargetKey
 	}
-	expected := slices.Clone(in.ExpectedHeads)
-	sort.Strings(actual)
-	sort.Strings(expected)
-	if !slices.Equal(actual, expected) {
-		return Summary{}, ErrConflict
+	if target != in.Key && v.cfg.Format < 2 {
+		return Summary{}, ErrUpgrade
 	}
-	if len(actual) > MaxBatchEntries {
-		return Summary{}, errors.New("冲突分支数量超过当前合并上限")
+	if err = v.availableName(target, id); err != nil {
+		return Summary{}, err
 	}
 	x, err := v.historical(in.Key, in.SourceRevision)
 	if err != nil {
 		return Summary{}, err
 	}
+	if x.meta.Deleted {
+		return Summary{}, errors.New("删除记录不含正文，请选择删除前的内容版本恢复")
+	}
 	d, err := v.document(x)
 	if err != nil {
 		return Summary{}, err
 	}
-	m := Metadata{EntryID: id, Revision: newID(), Parents: actual, Key: in.Key, Description: x.meta.Description, ReadPolicy: read, WritePolicy: write, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	m := Metadata{EntryID: id, Revision: newID(), Parents: actual, Key: target, Description: x.meta.Description, ReadPolicy: read, WritePolicy: write, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
 	if in.Description != nil {
 		m.Description = *in.Description
 	}
@@ -182,10 +171,5 @@ func (v *Vault) Restore(in RestoreChange) (Summary, error) {
 	if err = validateDocument(d); err != nil {
 		return Summary{}, err
 	}
-	b := batch{batchHeader: batchHeader{Format: FormatVersion, VaultID: v.cfg.VaultID, BatchID: newID(), Changes: []Metadata{m}}}
-	out, err := v.publishBatch(b, []Document{d})
-	if err != nil {
-		return Summary{}, err
-	}
-	return out[0], nil
+	return v.publishOne(m, d)
 }

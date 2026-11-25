@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	FormatVersion      = 1
+	FormatVersion      = 2
 	MaxFileBytes       = 16 << 20
 	MaxPayloadBytes    = 8 << 20
 	MaxAttachmentBytes = 2 << 20
@@ -33,6 +33,8 @@ var (
 	ErrDenied      = errors.New("该操作已被条目权限拒绝")
 	ErrApproval    = errors.New("该操作需要用户确认")
 	ErrNotFound    = errors.New("条目不存在")
+	ErrUpgrade     = errors.New("此操作需要资料库格式 2，请先备份并在设置页确认升级")
+	ErrDeleted     = errors.New("条目已删除，请从回收站恢复")
 )
 
 type Attachment struct {
@@ -54,8 +56,11 @@ type Metadata struct {
 	ReadPolicy  Policy   `json:"read_policy"`
 	WritePolicy Policy   `json:"write_policy"`
 	UpdatedAt   string   `json:"updated_at"`
+	Deleted     bool     `json:"deleted,omitempty"`
 }
 type Summary struct {
+	EntryID     string `json:"entry_id"`
+	Deleted     bool   `json:"deleted,omitempty"`
 	Key         string `json:"key"`
 	Description string `json:"description"`
 	Revision    string `json:"revision"`
@@ -93,6 +98,7 @@ type ReadResult struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 }
 type Status struct {
+	Format    int      `json:"format"`
 	Directory string   `json:"directory"`
 	Exists    bool     `json:"exists"`
 	Unlocked  bool     `json:"unlocked"`

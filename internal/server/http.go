@@ -35,6 +35,7 @@ type Server struct {
 	sessions    map[string]*webSession
 	mcpHandlers map[string]http.Handler
 	static      fs.FS
+	system      *systemState
 	idle        *idleState
 	device      *deviceState
 	maintenance sync.Mutex
@@ -64,7 +65,7 @@ func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, erro
 	if err != nil {
 		return nil, err
 	}
-	return &Server{device: device, idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}, nil
+	return &Server{system: &systemState{heartbeat: time.Now(), now: time.Now}, device: device, idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}, nil
 }
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -83,6 +84,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-site request denied", http.StatusForbidden)
 		return
 	}
+	s.SystemHeartbeat()
 	s.ExpireIdle()
 	if r.URL.Path == "/mcp" {
 		s.serveMCP(w, r)
@@ -133,7 +135,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.3.0-dev", "device_notice": s.deviceNotice()})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.4.0-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
 	case "/api/vault/create", "/api/vault/unlock":
 		if !method(w, r, "POST") {
 			return
@@ -144,12 +146,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		var err error
-		if r.URL.Path == "/api/vault/create" {
-			err = s.Vault.Init(in.Password)
-		} else {
-			err = s.Vault.Unlock(in.Password)
-		}
+		err := s.unlockPassword(in.Password, r.URL.Path == "/api/vault/create")
 		in.Password = ""
 		if err != nil {
 			apiError(w, err, 400)
@@ -219,7 +216,7 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request, create bool) (s
 	defer s.mu.Unlock()
 	now := time.Now()
 	for id, ss := range s.sessions {
-		if now.After(ss.Expires) {
+		if now.After(ss.Expires) || now.Round(0).After(ss.Expires.Round(0)) {
 			delete(s.sessions, id)
 		}
 	}
@@ -259,7 +256,9 @@ func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
 		}
 		var out []vault.Summary
 		var err error
-		if r.URL.Query().Get("scope") == "body" {
+		if r.URL.Query().Get("scope") == "trash" {
+			out, err = s.Vault.Trash(r.URL.Query().Get("q"))
+		} else if r.URL.Query().Get("scope") == "body" {
 			out, err = s.Vault.Search(r.URL.Query().Get("q"))
 		} else {
 			out, err = s.Vault.List(r.URL.Query().Get("q"))

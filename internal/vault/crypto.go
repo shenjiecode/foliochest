@@ -75,7 +75,7 @@ func (c config) aad() []byte {
 	return append([]byte("keyfolio/config/v1\x00"), b...)
 }
 func (c config) valid() bool {
-	return c.Format == FormatVersion && validID(c.VaultID) && c.KDF == "argon2id" && len(c.Salt) == 16 && c.Memory == kdfMemory && c.Iterations == kdfTime && c.Parallelism == kdfThreads && len(c.WrappedKey) == 60
+	return c.Format >= 1 && c.Format <= FormatVersion && validID(c.VaultID) && c.KDF == "argon2id" && len(c.Salt) == 16 && c.Memory == kdfMemory && c.Iterations == kdfTime && c.Parallelism == kdfThreads && len(c.WrappedKey) == 60
 }
 func ValidatePassword(password string) error {
 	if utf8.RuneCountInString(password) < 12 || len(password) > 1024 {
@@ -84,10 +84,13 @@ func ValidatePassword(password string) error {
 	return nil
 }
 func wrapConfig(password, vaultID string, key []byte) (config, error) {
+	return wrapVersion(password, vaultID, key, FormatVersion)
+}
+func wrapVersion(password, vaultID string, key []byte, format int) (config, error) {
 	if err := ValidatePassword(password); err != nil {
 		return config{}, err
 	}
-	c := config{Format: FormatVersion, VaultID: vaultID, KDF: "argon2id", Salt: make([]byte, 16), Memory: kdfMemory, Iterations: kdfTime, Parallelism: kdfThreads}
+	c := config{Format: format, VaultID: vaultID, KDF: "argon2id", Salt: make([]byte, 16), Memory: kdfMemory, Iterations: kdfTime, Parallelism: kdfThreads}
 	if _, err := rand.Read(c.Salt); err != nil {
 		return c, err
 	}

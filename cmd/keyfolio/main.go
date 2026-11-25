@@ -68,6 +68,7 @@ func main() {
 	srv := &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 << 10}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	app.StartSystemMonitor(ctx)
 	app.TryAutoUnlock(ctx)
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
@@ -77,6 +78,7 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				app.SystemHeartbeat()
 				app.ExpireIdle()
 				app.Access.Sweep()
 				if !v.Locked() {
@@ -92,7 +94,7 @@ func main() {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	fmt.Printf("Keyfolio 0.3.0-dev\n网页: %s\n资料库: %s\n当前为开发预览，请仅使用合成测试数据。\n", baseURL, *root)
+	fmt.Printf("Keyfolio 0.4.0-dev\n网页: %s\n资料库: %s\n当前为开发预览，请仅使用合成测试数据。\n", baseURL, *root)
 	if err = srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

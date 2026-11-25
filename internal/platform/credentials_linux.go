@@ -36,6 +36,12 @@ func connectSecrets(ctx context.Context) (*dbus.Conn, error) {
 		}
 		address = "unix:path=" + filepath.Join(directory, "bus")
 	}
+	return connectLocalBus(ctx, address)
+}
+
+// Authentication is bounded even for the long-lived system-event connection.
+// The bus context keeps its original lifetime; only dialing/auth uses 5 seconds.
+func connectLocalBus(ctx context.Context, address string) (*dbus.Conn, error) {
 	if !strings.HasPrefix(address, "unix:") || strings.Contains(address, ";") {
 		return nil, ErrUnavailable
 	}
@@ -59,13 +65,15 @@ func connectSecrets(ctx context.Context) (*dbus.Conn, error) {
 	if socket == "" {
 		return nil, ErrUnavailable
 	}
-	connection, err := (&net.Dialer{}).DialContext(ctx, "unix", socket)
+	connection, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "unix", socket)
 	if err != nil {
 		return nil, ErrUnavailable
 	}
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = connection.SetDeadline(deadline)
+	deadline := time.Now().Add(5 * time.Second)
+	if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
+		deadline = limit
 	}
+	_ = connection.SetDeadline(deadline)
 	bus, err := dbus.NewConn(connection, dbus.WithContext(ctx))
 	if err != nil {
 		connection.Close()
@@ -78,6 +86,7 @@ func connectSecrets(ctx context.Context) (*dbus.Conn, error) {
 		bus.Close()
 		return nil, ErrUnavailable
 	}
+	_ = connection.SetDeadline(time.Time{})
 	return bus, nil
 }
 func openSecretSession(ctx context.Context, c *dbus.Conn) (dbus.ObjectPath, error) {

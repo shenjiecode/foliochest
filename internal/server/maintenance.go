@@ -14,7 +14,8 @@ import (
 )
 
 type DeviceSettings struct {
-	IdleLockMinutes int `json:"idle_lock_minutes"`
+	LockOnSystemEvents bool `json:"lock_on_system_events"`
+	IdleLockMinutes    int  `json:"idle_lock_minutes"`
 }
 type idleState struct {
 	mu           sync.Mutex
@@ -24,7 +25,7 @@ type idleState struct {
 }
 
 func loadIdle(dir string) (*idleState, error) {
-	state := &idleState{now: time.Now, lastActivity: time.Now()}
+	state := &idleState{settings: DeviceSettings{LockOnSystemEvents: true}, now: time.Now, lastActivity: time.Now()}
 	raw, err := os.ReadFile(filepath.Join(dir, "settings.json"))
 	if os.IsNotExist(err) {
 		return state, nil
@@ -47,7 +48,9 @@ func (s *Server) ExpireIdle() {
 	s.idle.mu.Lock()
 	defer s.idle.mu.Unlock()
 	limit := time.Duration(s.idle.settings.IdleLockMinutes) * time.Minute
-	if limit > 0 && s.idle.now().Sub(s.idle.lastActivity) >= limit && !s.Vault.Locked() {
+	now := s.idle.now()
+	elapsed := max(now.Sub(s.idle.lastActivity), now.Round(0).Sub(s.idle.lastActivity.Round(0)))
+	if limit > 0 && elapsed >= limit && !s.Vault.Locked() {
 		s.Access.Lock()
 	}
 }
@@ -64,7 +67,10 @@ func (s *Server) serveMaintenance(w http.ResponseWriter, r *http.Request) bool {
 		if !method(w, r, "POST") {
 			return true
 		}
-		var in DeviceSettings
+		var in struct {
+			IdleLockMinutes    int   `json:"idle_lock_minutes"`
+			LockOnSystemEvents *bool `json:"lock_on_system_events"`
+		}
 		if !decode(w, r, &in) {
 			return true
 		}
@@ -72,18 +78,24 @@ func (s *Server) serveMaintenance(w http.ResponseWriter, r *http.Request) bool {
 			apiError(w, errors.New("自动锁定需为 0–1440 分钟；0 表示关闭"), 400)
 			return true
 		}
-		raw, _ := json.Marshal(in)
 		s.idle.mu.Lock()
+		settings := s.idle.settings
+		settings.IdleLockMinutes = in.IdleLockMinutes
+		if in.LockOnSystemEvents != nil {
+			settings.LockOnSystemEvents = *in.LockOnSystemEvents
+		}
+		raw, _ := json.Marshal(settings)
 		err := writeLocal(filepath.Join(s.deviceDir, "settings.json"), raw)
 		if err == nil {
-			s.idle.settings = in
+			s.idle.settings = settings
 			s.idle.lastActivity = s.idle.now()
 		}
 		s.idle.mu.Unlock()
 		if err != nil {
 			apiError(w, err, 500)
 		} else {
-			writeJSON(w, in)
+			s.enforceSystemSetting()
+			writeJSON(w, settings)
 		}
 	case "/api/activity":
 		if !method(w, r, "POST") {
@@ -91,6 +103,36 @@ func (s *Server) serveMaintenance(w http.ResponseWriter, r *http.Request) bool {
 		}
 		s.activity()
 		writeJSON(w, map[string]bool{"ok": true})
+	case "/api/entry/rename":
+		if !method(w, r, "POST") {
+			return true
+		}
+		var in vault.RenameChange
+		if !decode(w, r, &in) {
+			return true
+		}
+		out, err := s.Vault.Rename(in)
+		if err != nil {
+			apiError(w, err, 409)
+		} else {
+			s.activity()
+			writeJSON(w, out)
+		}
+	case "/api/entry/delete":
+		if !method(w, r, "POST") {
+			return true
+		}
+		var in vault.DeleteChange
+		if !decode(w, r, &in) {
+			return true
+		}
+		out, err := s.Vault.Delete(in)
+		if err != nil {
+			apiError(w, err, 409)
+		} else {
+			s.activity()
+			writeJSON(w, out)
+		}
 	case "/api/history":
 		if !method(w, r, "GET") {
 			return true

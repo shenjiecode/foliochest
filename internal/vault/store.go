@@ -48,6 +48,7 @@ type Vault struct {
 	key         []byte
 	generation  uint64
 	items       map[string]*item
+	identities  map[string]*item
 	versions    map[string]*version
 	batchStates map[string]int
 	issues      []string
@@ -64,6 +65,7 @@ func (v *Vault) lock() {
 	v.key = nil
 	v.configBytes = nil
 	v.items = map[string]*item{}
+	v.identities = map[string]*item{}
 	v.versions = nil
 	v.batchStates = nil
 	v.issues = nil
@@ -156,7 +158,17 @@ func (v *Vault) Status() Status {
 	if v.scanErr != nil {
 		issues = append(issues, v.scanErr.Error())
 	}
-	return Status{Directory: v.root, Exists: err == nil, Unlocked: len(v.key) > 0, Entries: len(v.items), Issues: issues}
+	count := 0
+	for _, it := range v.items {
+		if it.state != "deleted" {
+			count++
+		}
+	}
+	format := 0
+	if len(v.key) > 0 {
+		format = v.cfg.Format
+	}
+	return Status{Format: format, Directory: v.root, Exists: err == nil, Unlocked: len(v.key) > 0, Entries: count, Issues: issues}
 }
 func (v *Vault) Scan() error {
 	v.mu.Lock()
@@ -207,6 +219,10 @@ func (v *Vault) scan() error {
 		if e == nil {
 			e = decodeStrict(raw, &b)
 		}
+		if b.Format > v.cfg.Format || b.Format > FormatVersion {
+			v.scanErr = errors.New("发现比当前库配置更新的记录格式，请停止操作并同步完整配置、升级所有设备程序")
+			return v.scanErr
+		}
 		if e == nil {
 			e = v.validateBatch(&b)
 		}
@@ -243,7 +259,7 @@ func (v *Vault) scan() error {
 			}
 			for _, parent := range m.Parents {
 				p, ok := versions[parent]
-				if !ok || p.meta.EntryID != m.EntryID || p.batch.BatchID == b.BatchID || !batchReady(p.batch) {
+				if !ok || p.meta.EntryID != m.EntryID || (b.Format == 1 && p.meta.Key != m.Key) || p.batch.BatchID == b.BatchID || !batchReady(p.batch) {
 					batchState[b.BatchID] = 3
 					return false
 				}
@@ -252,66 +268,7 @@ func (v *Vault) scan() error {
 		batchState[b.BatchID] = 2
 		return true
 	}
-	next := map[string]*item{}
-	for id, all := range groups {
-		parents := map[string]bool{}
-		state := "ready"
-		for _, x := range all {
-			if !batchReady(x.batch) {
-				state = "incomplete"
-			}
-			for _, p := range x.meta.Parents {
-				parents[p] = true
-				if pv, ok := versions[p]; !ok || pv.meta.EntryID != id {
-					state = "incomplete"
-				}
-			}
-		}
-		heads := []*version{}
-		for _, x := range all {
-			if !parents[x.meta.Revision] {
-				heads = append(heads, x)
-			}
-		}
-		sort.Slice(heads, func(i, j int) bool { return heads[i].meta.Revision < heads[j].meta.Revision })
-		if len(heads) == 0 {
-			heads = all[:1]
-			state = "conflict"
-		}
-		if len(heads) > 1 {
-			state = "conflict"
-		}
-		if invalid[id] {
-			state = "invalid"
-		}
-		key := heads[0].meta.Key
-		if prev, ok := next[key]; ok {
-			prev.state = "conflict"
-			prev.heads = append(prev.heads, heads...)
-			prev.count += len(all)
-		} else {
-			next[key] = &item{heads: heads, state: state, count: len(all)}
-		}
-	}
-	// Do not silently fall back to an ancestor if an already observed head disappears.
-	for key, old := range v.items {
-		missing := false
-		for _, h := range old.heads {
-			if _, ok := versions[h.meta.Revision]; !ok {
-				missing = true
-			}
-		}
-		if missing {
-			if current, ok := next[key]; ok {
-				current.state = "missing"
-			} else {
-				copyItem := *old
-				copyItem.state = "missing"
-				next[key] = &copyItem
-			}
-		}
-	}
-	v.items = next
+	v.indexVersions(groups, versions, invalid, batchReady)
 	v.versions = versions
 	v.batchStates = batchState
 	v.issues = issues
@@ -321,13 +278,16 @@ func (v *Vault) scan() error {
 	return nil
 }
 func (v *Vault) validateBatch(b *batch) error {
-	if b.Format != FormatVersion || b.VaultID != v.cfg.VaultID || !validID(b.BatchID) || len(b.Changes) == 0 || len(b.Changes) > MaxBatchEntries {
+	if b.Format < 1 || b.Format > v.cfg.Format || b.Format > FormatVersion || b.VaultID != v.cfg.VaultID || !validID(b.BatchID) || len(b.Changes) == 0 || len(b.Changes) > MaxBatchEntries {
 		return errors.New("无效批次")
 	}
 	seen := map[string]bool{}
 	for _, m := range b.Changes {
 		if err := validateMetadata(m); err != nil {
 			return err
+		}
+		if b.Format == 1 && m.Deleted {
+			return errors.New("删除记录需要格式 2")
 		}
 		if seen[m.EntryID] {
 			return errors.New("批次包含重复条目")
@@ -349,7 +309,10 @@ func (v *Vault) validateBatch(b *batch) error {
 	if len(docs) != len(b.Changes) {
 		return errors.New("批次内容数量不符")
 	}
-	for _, d := range docs {
+	for i, d := range docs {
+		if b.Changes[i].Deleted && (d.Value != "" || len(d.Attachments) != 0 || d.Format != "text") {
+			return errors.New("删除记录不能包含正文或附件")
+		}
 		if err = validateDocument(d); err != nil {
 			return err
 		}
@@ -373,6 +336,9 @@ func (v *Vault) ready(key string) (*version, error) {
 	if !ok {
 		return nil, ErrNotFound
 	}
+	if it.state == "deleted" {
+		return nil, ErrDeleted
+	}
 	if it.state == "conflict" {
 		return nil, ErrConflict
 	}
@@ -383,14 +349,15 @@ func (v *Vault) ready(key string) (*version, error) {
 }
 func summary(it *item) Summary {
 	m := it.heads[0].meta
-	return Summary{Key: m.Key, Description: m.Description, Revision: m.Revision, ReadPolicy: m.ReadPolicy, WritePolicy: m.WritePolicy, State: it.state, Versions: it.count}
+	return Summary{EntryID: m.EntryID, Deleted: it.state == "deleted", Key: m.Key, Description: m.Description, Revision: m.Revision, ReadPolicy: m.ReadPolicy, WritePolicy: m.WritePolicy, State: it.state, Versions: it.count}
 }
-func (v *Vault) List(query string) ([]Summary, error) { return v.list(query, false) }
+func (v *Vault) List(query string) ([]Summary, error)  { return v.list(query, false, false) }
+func (v *Vault) Trash(query string) ([]Summary, error) { return v.list(query, false, true) }
 
 // Search is a human-only search. MCP discovery must continue to use List.
-func (v *Vault) Search(query string) ([]Summary, error) { return v.list(query, true) }
+func (v *Vault) Search(query string) ([]Summary, error) { return v.list(query, true, false) }
 
-func (v *Vault) list(query string, body bool) ([]Summary, error) {
+func (v *Vault) list(query string, body, deleted bool) ([]Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if len(v.key) == 0 {
@@ -401,8 +368,12 @@ func (v *Vault) list(query string, body bool) ([]Summary, error) {
 	}
 	out := []Summary{}
 	query = strings.ToLower(strings.TrimSpace(query))
-	for _, it := range v.items {
+	for key, it := range v.items {
+		if (it.state == "deleted") != deleted {
+			continue
+		}
 		s := summary(it)
+		s.Key = key
 		matches := query == "" || strings.Contains(strings.ToLower(s.Key+" "+s.Description), query)
 		if !matches && body && it.state == "ready" {
 			doc, err := v.document(it.heads[0])
@@ -607,7 +578,7 @@ func (v *Vault) Commit(changes []Change, human, approved bool) ([]Summary, error
 	if needs && !approved {
 		return nil, ErrApproval
 	}
-	b := batch{batchHeader: batchHeader{Format: FormatVersion, VaultID: v.cfg.VaultID, BatchID: newID(), Changes: []Metadata{}}}
+	b := batch{batchHeader: batchHeader{Format: v.cfg.Format, VaultID: v.cfg.VaultID, BatchID: newID(), Changes: []Metadata{}}}
 	docs := []Document{}
 	for _, c := range changes {
 		m := Metadata{EntryID: newID(), Revision: newID(), Parents: []string{}, Key: c.Key, ReadPolicy: Ask, WritePolicy: Ask, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
@@ -682,7 +653,9 @@ func (v *Vault) publishBatch(b batch, docs []Document) ([]Summary, error) {
 	out := []Summary{}
 	for _, c := range b.Changes {
 		if it, ok := v.items[c.Key]; ok {
-			out = append(out, summary(it))
+			row := summary(it)
+			row.Key = c.Key
+			out = append(out, row)
 		}
 	}
 	return out, nil

@@ -1,0 +1,42 @@
+#idle-form .system-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.8;
+  margin: 18px 0 10px;
+}
+.entry-management {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 20px;
+}
+.entry-management summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.entry-management form {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+.entry-management label {
+  font-size: 12px;
+}
+.entry-management input {
+  width: 100%;
+  min-width: 0;
+}
+.entry-management > button {
+  margin: 20px 0 12px;
+}
+.entry-management .small,
+.system-message {
+  line-height: 1.8;
+}
+.version-button span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.history-form input[name="target_key"] {
+  width: 100%;
+}
