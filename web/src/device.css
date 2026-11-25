@@ -1,0 +1,43 @@
+.device-settings form + form {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 20px;
+}
+.device-settings label:not(.device-check) {
+  display: block;
+  margin: 18px 0 8px;
+  font-size: 12px;
+}
+.device-settings input[type="password"] {
+  width: 100%;
+}
+.device-settings .device-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 0 12px;
+  font-size: 13px;
+  line-height: 1.8;
+  cursor: pointer;
+}
+.device-check input {
+  flex: 0 0 auto;
+  margin-top: 5px;
+  accent-color: var(--accent);
+}
+.device-settings .small {
+  line-height: 1.9;
+  margin-bottom: 14px;
+}
+.device-settings button {
+  margin-top: 18px;
+}
+.device-settings .inline-warning {
+  margin: 16px 0;
+}
+#device-enrollment[hidden] {
+  display: none;
+}
+#device-cleanup {
+  display: block;
+}

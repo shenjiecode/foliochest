@@ -77,22 +77,32 @@ func (c config) aad() []byte {
 func (c config) valid() bool {
 	return c.Format == FormatVersion && validID(c.VaultID) && c.KDF == "argon2id" && len(c.Salt) == 16 && c.Memory == kdfMemory && c.Iterations == kdfTime && c.Parallelism == kdfThreads && len(c.WrappedKey) == 60
 }
-func newConfig(password string) (config, []byte, error) {
+func ValidatePassword(password string) error {
 	if utf8.RuneCountInString(password) < 12 || len(password) > 1024 {
-		return config{}, nil, errors.New("主密码至少 12 个字符，建议使用长口令")
+		return errors.New("主密码至少 12 个字符且最多 1024 字节，建议使用长口令")
 	}
-	c := config{Format: FormatVersion, VaultID: newID(), KDF: "argon2id", Salt: make([]byte, 16), Memory: kdfMemory, Iterations: kdfTime, Parallelism: kdfThreads}
-	key := make([]byte, 32)
+	return nil
+}
+func wrapConfig(password, vaultID string, key []byte) (config, error) {
+	if err := ValidatePassword(password); err != nil {
+		return config{}, err
+	}
+	c := config{Format: FormatVersion, VaultID: vaultID, KDF: "argon2id", Salt: make([]byte, 16), Memory: kdfMemory, Iterations: kdfTime, Parallelism: kdfThreads}
 	if _, err := rand.Read(c.Salt); err != nil {
-		return c, nil, err
-	}
-	if _, err := rand.Read(key); err != nil {
-		return c, nil, err
+		return c, err
 	}
 	kek := argon2.IDKey([]byte(password), c.Salt, c.Iterations, c.Memory, c.Parallelism, 32)
 	defer clear(kek)
 	var err error
 	c.WrappedKey, err = seal(kek, key, c.aad())
+	return c, err
+}
+func newConfig(password string) (config, []byte, error) {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return config{}, nil, err
+	}
+	c, err := wrapConfig(password, newID(), key)
 	if err != nil {
 		clear(key)
 		return c, nil, err

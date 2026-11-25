@@ -2,7 +2,7 @@
 
 ## 项目状态
 
-Keyfolio 已实现 `0.2.0-dev` 原型。实际完成与待做事项以 README 为准。用户要求写完后提交并 push；提交前完成测试并检查不包含真实资料或运行目录。
+Keyfolio 已实现 `0.3.0-dev` 原型。实际完成与待做事项以 README 为准。用户要求写完后提交并 push；提交前完成测试并检查不包含真实资料或运行目录。
 
 ## 阅读顺序
 
@@ -27,5 +27,7 @@ Keyfolio 已实现 `0.2.0-dev` 原型。实际完成与待做事项以 README �
 - 全包 Go 测试前先执行 `npm --prefix web ci && npm --prefix web run build`，因为 `web/embed.go` 嵌入构建产物。
 - 基本检查：`go test -race ./...`、`go vet ./...`、`npm --prefix web run check`、`npm --prefix web test`。
 - Windows/其他架构需分别构建及运行验证。
+- 设备解锁材料只进系统凭据库，不允许明文文件回退。设备授权、记住浏览器和自启动默认关闭。系统凭据测试使用隔离 D-Bus、临时 HOME/XDG 或 mock，不读写开发者现有凭据和启动项。
+- 改主密码仅重新包装原库密钥，不等于数据密钥轮换或撤销旧备份；保持此语义并测试。
 - 历史/恢复/正文搜索/备份仅向经过认证的人类网页提供，不添加成免审批的 MCP 接口。恢复保持当前策略，合并取当前分支更严格的策略。
 - `.local/`、`bin/`、`web/dist/`、`web/node_modules/` 是本地生成内容，不提交。

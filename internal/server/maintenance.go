@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
 
@@ -157,6 +158,10 @@ func (s *Server) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clear(in.Archive)
+	if err := platform.SeparateDirectories(in.Directory, s.deviceDir); err != nil {
+		apiError(w, err, 400)
+		return
+	}
 	if err := vault.RestoreBackup(in.Archive, in.Directory, in.Password); err != nil {
 		apiError(w, err, 400)
 		return

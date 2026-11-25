@@ -1,6 +1,6 @@
 # 原型文件格式
 
-适用于 `0.1.0-dev` 与当前 `0.2.0-dev`，本轮未变更磁盘格式。格式号为 1，仍属实验性格式，正式发布前需要复核与迁移方案。
+适用于 `0.1.0-dev`、`0.2.0-dev` 与当前 `0.3.0-dev`；资料库磁盘格式未改变，新增设备文件不参与同步。格式号为 1，仍属实验性格式，正式发布前需要复核与迁移方案。
 
 本文件说明实际实现，产品目标见 [DESIGN](DESIGN.md)，边界与尚未完成的保护见 [BOUNDARIES](BOUNDARIES.md)。
 
@@ -47,6 +47,26 @@ UTF8("keyfolio/config/v1\x00") || JSON(config with wrapped_key = null)
 AES-GCM 输出按 `12 字节随机 nonce || ciphertext || 16 字节认证标签` 保存。32 字节库密钥对应的整个封装为 60 字节。
 
 AAD 中的 JSON 使用 Go 标准库 `encoding/json.Marshal`，按上述结构字段顺序、不加缩进生成。字节数组使用 Base64，遵循该编码器对字符串的转义规则；这不是 RFC 8785 的通用规范化 JSON。
+
+### 2.1 变更主密码
+
+验证旧密码及当前快照后，以新密码、新的 16 字节 salt、新 nonce 重新加密原有 32 字节库密钥；库 ID 不变。临时配置写完并刷新后，在同一目录替换 `vault.json`，保留全部记录文件。成功后结束解锁会话。旧备份中的 `vault.json` 仍可用旧密码解开；这不是数据密钥轮换。
+
+### 2.2 本机设备凭据（不属于同步格式）
+
+`device.json` 位于设备配置目录，保存启用状态、规范化资料库目录、`binding.vault_id`、`binding.config_hash`、随机 `credential_id`、可选浏览器 Cookie 的 SHA-256 哈希及到期时间。它不包含主密码或库密钥；禁止放在资料库目录内。
+
+系统凭据库中的载荷为版本 1 JSON：`version, vault_id, config_hash, key, proof`。`config_hash` 是完整 `vault.json` 文件字节的 SHA-256 小写十六进制；`key` 是原库密钥的 Base64，`proof` 是下式 HMAC 的 Base64：
+
+```text
+HMAC-SHA256(key, UTF8("keyfolio/device/v1\x00" + vault_id + "\x00" + config_hash))
+```
+
+这里 `\x00` 同样表示零字节。该 HMAC 用来检测凭据损坏及绑定不一致，不是对持有库密钥者的撤销机制。应用还比较本机保存的绑定和路径；不把载荷作为公开 HTTP/MCP 参数接收。
+
+系统凭据命名空间为 `io.github.shenjiecode.keyfolio`，每次授权使用新的随机凭据标识。Linux 的 Secret Service 查找属性为 `application` 与 `credential`；Windows 目标名称为 `<命名空间>/<credential_id>`。停用标记先落盘，再尝试删除凭据；失败保留标识供清理。
+
+浏览器另持有 `kf_trusted_<设备目录标识>` Cookie，默认不开启，有效期 90 天；服务端只存哈希。空闲设置仍在 `settings.json`，当前目录在 `location.json`，MCP 客户端凭据哈希在 `clients.json`。这些文件和系统凭据均不进入备份 ZIP。
 
 ## 3. 批次记录
 
@@ -135,6 +155,6 @@ value, format, attachments
 
 历史恢复与同一条目的正文合并都生成新批次，其 parents 包含全部已确认的当前 head。恢复不重放旧权限；合并逐项采用当前分支中更严格的读取/修改策略。附件沿用所选版本，其他版本仍保留。
 
-专门的离线 CLI、明文导出、历史清理、不同条目同名冲突处理及主密码变更尚未完成。
+专门的离线 CLI、明文导出、历史清理、不同条目同名冲突处理及完整的数据密钥轮换尚未完成。
 
-客户端凭据不随资料库恢复；新设备在网页重新创建自己的客户端接入关系。格式的实现参考位于 `internal/vault/crypto.go`、`internal/vault/store.go` 与对应测试。
+客户端凭据不随资料库恢复；新设备在网页重新创建自己的客户端接入关系。格式的实现参考位于 `internal/vault/crypto.go`、`internal/vault/store.go`、`internal/vault/device.go`、`internal/platform/` 与对应测试。

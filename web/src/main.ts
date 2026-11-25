@@ -3,6 +3,7 @@ import { esc } from "./ui";
 import { mountHistory } from "./history";
 import { backup, bindRestore, restoreForm } from "./recovery";
 import { renderMarkdown } from "./markdown";
+import { DeviceState, deviceForms, bindDevice } from "./device";
 
 type Policy = "allow" | "ask" | "deny";
 type Summary = {
@@ -24,6 +25,7 @@ type State = {
   authenticated: boolean;
   csrf: string;
   version: string;
+  device_notice: string;
   vault: {
     directory: string;
     exists: boolean;
@@ -102,7 +104,13 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
     cache: "no-store",
   });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "请求失败");
+  if (!response.ok) {
+    if (response.status === 401 && state?.authenticated) {
+      state.authenticated = false;
+      renderLock();
+    }
+    throw new Error(result.error || "请求失败");
+  }
   if (epoch !== sessionEpoch && !path.startsWith("/api/vault/"))
     throw new Error("网页会话已变化，已丢弃旧请求的结果");
   return result as T;
@@ -132,8 +140,9 @@ function permissionSelect(id: string, value: Policy): string {
 function pill(policy: Policy): string {
   return `<span class="pill ${policy}">${labels[policy]}</span>`;
 }
-function renderLock(): void {
+function clearSessionState(): void {
   sessionEpoch++;
+  entries = [];
   searchSequence++;
   bodyMatches = null;
   bodySearch = false;
@@ -143,7 +152,10 @@ function renderLock(): void {
   dirty = false;
   draftAttachments = [];
   visibleToken = "";
-  root.innerHTML = `<main class="lock-layout"><section class="intro"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="intro-copy"><p class="eyebrow">YOUR LOCAL KNOWLEDGE VAULT</p><h1>资料留在本地，<br>使用由你决定。</h1><p class="intro-description">用 key 和 description 找到内容。<br>密码、文档与附件加密保存，AI 按你的权限使用。</p></div><div class="intro-footer">Go 后台 · 本地网页 · MCP 接入</div></section><section class="unlock-area"><div class="unlock-card"><p class="eyebrow">${state.vault.exists ? "WELCOME BACK" : "GET STARTED"}</p><h2>${state.vault.exists ? "解锁资料库" : "创建你的资料库"}</h2><p class="muted">${state.vault.exists ? "输入主密码，开启本次本地会话。" : "先选择一个空目录，再设置主密码。"}</p><div id="notice" class="notice" hidden role="status"></div><label for="directory">资料库目录</label><div class="directory-row"><input id="directory" value="${esc(state.vault.directory)}" spellcheck="false"><button id="select-directory" class="button secondary" type="button">切换</button></div><form id="unlock-form"><input type="text" name="username" autocomplete="username" value="Keyfolio" class="sr-only" aria-label="资料库" tabindex="-1"><label for="password">主密码</label><input id="password" type="password" autocomplete="${state.vault.exists ? "current-password" : "new-password"}" minlength="12" required placeholder="${state.vault.exists ? "输入主密码" : "至少 12 个字符，建议使用长口令"}">${state.vault.exists ? "" : '<label for="confirm-password">确认主密码</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required placeholder="再次输入主密码">'}<button class="button primary full" type="submit">${state.vault.exists ? "解锁资料库" : "创建并解锁"} <span aria-hidden="true">→</span></button></form>${restoreForm(state.vault.directory)}<p class="preview-note">开发预览 · 请先使用合成测试数据</p></div><p class="local-caption">网页和文件均由这台电脑上的服务提供。</p></section></main>`;
+}
+function renderLock(): void {
+  clearSessionState();
+  root.innerHTML = `<main class="lock-layout"><section class="intro"><div class="wordmark">Keyfolio<span class="dev-label">DEV</span></div><div class="intro-copy"><p class="eyebrow">YOUR LOCAL KNOWLEDGE VAULT</p><h1>资料留在本地，<br>使用由你决定。</h1><p class="intro-description">用 key 和 description 找到内容。<br>密码、文档与附件加密保存，AI 按你的权限使用。</p></div><div class="intro-footer">Go 后台 · 本地网页 · MCP 接入</div></section><section class="unlock-area"><div class="unlock-card"><p class="eyebrow">${state.vault.exists ? "WELCOME BACK" : "GET STARTED"}</p><h2>${state.vault.exists ? "解锁资料库" : "创建你的资料库"}</h2><p class="muted">${state.vault.exists ? (state.vault.unlocked ? "后台已解锁；此浏览器仍需输入主密码授权。" : "输入主密码，开启本次本地会话。") : "先选择一个空目录，再设置主密码。"}</p>${state.device_notice ? `<p class="inline-warning">${esc(state.device_notice)}</p>` : ""}<div id="notice" class="notice" hidden role="status"></div><label for="directory">资料库目录</label><div class="directory-row"><input id="directory" value="${esc(state.vault.directory)}" spellcheck="false"><button id="select-directory" class="button secondary" type="button">切换</button></div><form id="unlock-form"><input type="text" name="username" autocomplete="username" value="Keyfolio" class="sr-only" aria-label="资料库" tabindex="-1"><label for="password">主密码</label><input id="password" type="password" autocomplete="${state.vault.exists ? "current-password" : "new-password"}" minlength="12" required placeholder="${state.vault.exists ? "输入主密码" : "至少 12 个字符，建议使用长口令"}">${state.vault.exists ? "" : '<label for="confirm-password">确认主密码</label><input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required placeholder="再次输入主密码">'}<button class="button primary full" type="submit">${state.vault.exists ? "解锁资料库" : "创建并解锁"} <span aria-hidden="true">→</span></button></form>${restoreForm(state.vault.directory)}<p class="preview-note">开发预览 · 请先使用合成测试数据</p></div><p class="local-caption">网页和文件均由这台电脑上的服务提供。</p></section></main>`;
   bindRestore(api, run, async () => {
     await refreshState(true);
     notice("备份已恢复，请使用备份的主密码重新解锁。");
@@ -199,6 +211,8 @@ function renderShell(): void {
     void run(async () => {
       if (dirty && !confirm("锁定会清除未保存的草稿，继续？")) return;
       await api("/api/vault/lock", {});
+      state.authenticated = false;
+      renderLock();
       await refreshState(true);
     });
 }
@@ -523,13 +537,26 @@ async function renderApprovals(): Promise<void> {
   $("#approval-count").textContent = String(requests.length);
 }
 async function renderSettings(): Promise<void> {
-  const [clients, device] = await Promise.all([
+  const [clients, device, security] = await Promise.all([
     api<Client[]>("/api/clients"),
     api<{ idle_lock_minutes: number }>("/api/settings"),
+    api<DeviceState>("/api/device"),
   ]);
   if (currentView !== "settings" || !state.authenticated) return;
   $("#view").innerHTML =
-    `<section class="page-heading"><div><p class="eyebrow">CONNECTIONS</p><h1>连接与设置</h1><p class="muted">每个 AI 客户端使用独立的接入凭据。</p></div></section><div class="settings-grid"><section class="settings-card"><h2>MCP 客户端</h2><p class="muted">本地地址 <code>${esc(location.origin)}/mcp</code></p><form id="client-form" class="client-form"><label class="sr-only" for="client-name">客户端名称</label><input id="client-name" required maxlength="120" placeholder="例如：本机 pi"><button class="button primary">创建接入凭据</button></form><div id="client-secret" hidden></div><div class="client-list">${clients.length ? clients.map((client) => `<div class="client-row"><div><strong>${esc(client.name)}</strong><p class="muted">创建于 ${new Date(client.created_at).toLocaleDateString()}</p></div><button class="text-button danger" data-revoke="${esc(client.id)}">撤销</button></div>`).join("") : '<p class="muted">还没有接入的客户端。</p>'}</div></section><section class="settings-card"><h2>这台电脑</h2><dl class="device-info"><dt>资料库目录</dt><dd class="mono">${esc(state.vault.directory)}</dd><dt>程序版本</dt><dd>${esc(state.version)}</dd><dt>文件变化</dt><dd>每 2 秒扫描；读取与保存前再次校验</dd><dt>自动启动 / 自动解锁</dt><dd>尚未实现，当前使用主密码手动解锁</dd></dl><p class="small muted">目录切换在锁定页面完成。系统凭据与自启动仍待实现。</p><form id="idle-form"><label for="idle-minutes">网页无操作后自动锁定（分钟）</label><input id="idle-minutes" type="number" min="0" max="1440" value="${device.idle_lock_minutes}" required><p class="small muted">0 表示关闭。只计算网页操作，后台轮询和 MCP 请求不会续期。</p><button class="button secondary" type="submit">保存锁定设置</button></form></section><section class="settings-card"><h2>备份与恢复</h2><p class="muted">备份包含明文索引、加密正文、附件及全部历史，不含本机接入凭据。</p><button id="download-backup" class="button primary" type="button">下载加密资料库备份</button>${restoreForm(state.vault.directory)}</section></div>`;
+    `<section class="page-heading"><div><p class="eyebrow">CONNECTIONS</p><h1>连接与设置</h1><p class="muted">每个 AI 客户端使用独立的接入凭据。</p></div></section><div class="settings-grid"><section class="settings-card"><h2>MCP 客户端</h2><p class="muted">本地地址 <code>${esc(location.origin)}/mcp</code></p><form id="client-form" class="client-form"><label class="sr-only" for="client-name">客户端名称</label><input id="client-name" required maxlength="120" placeholder="例如：本机 pi"><button class="button primary">创建接入凭据</button></form><div id="client-secret" hidden></div><div class="client-list">${clients.length ? clients.map((client) => `<div class="client-row"><div><strong>${esc(client.name)}</strong><p class="muted">创建于 ${new Date(client.created_at).toLocaleDateString()}</p></div><button class="text-button danger" data-revoke="${esc(client.id)}">撤销</button></div>`).join("") : '<p class="muted">还没有接入的客户端。</p>'}</div></section><section class="settings-card"><h2>这台电脑</h2><dl class="device-info"><dt>资料库目录</dt><dd class="mono">${esc(state.vault.directory)}</dd><dt>程序版本</dt><dd>${esc(state.version)}</dd><dt>文件变化</dt><dd>每 2 秒扫描；读取与保存前再次校验</dd><dt>系统凭据</dt><dd>${esc(security.provider)}</dd></dl><p class="small muted">目录切换在锁定页面完成。启动与设备授权可在下方分别设置。</p><form id="idle-form"><label for="idle-minutes">网页无操作后自动锁定（分钟）</label><input id="idle-minutes" type="number" min="0" max="1440" value="${device.idle_lock_minutes}" required><p class="small muted">0 表示关闭。只计算网页操作，后台轮询和 MCP 请求不会续期。</p><button class="button secondary" type="submit">保存锁定设置</button></form></section><section class="settings-card"><h2>备份与恢复</h2><p class="muted">备份包含明文索引、加密正文、附件及全部历史，不含本机接入凭据。</p><button id="download-backup" class="button primary" type="button">下载加密资料库备份</button>${restoreForm(state.vault.directory)}</section>${deviceForms(security)}</div>`;
+  bindDevice(
+    api,
+    run,
+    async (message) => {
+      await renderSettings();
+      notice(message);
+    },
+    async (message) => {
+      await refreshState(true);
+      notice(message);
+    },
+  );
   $("#idle-form").onsubmit = (event) => {
     event.preventDefault();
     void run(async () => {
@@ -592,9 +619,17 @@ async function renderSettings(): Promise<void> {
 }
 async function refreshState(force = false): Promise<void> {
   const previous = state?.authenticated;
+  const previousCSRF = state?.csrf;
   state = await api<State>("/api/state");
+  const sessionChanged = !!previousCSRF && previousCSRF !== state.csrf;
+  if (sessionChanged) {
+    clearSessionState();
+    force = true;
+  }
   if (!state.authenticated) {
     if (force || previous !== false) renderLock();
+    if (sessionChanged && previous)
+      notice("网页会话已更新，旧草稿与输入内容已清除。");
     return;
   }
   if (force || !previous) {
@@ -603,6 +638,8 @@ async function refreshState(force = false): Promise<void> {
       : "entries";
     renderShell();
     await renderView();
+    if (sessionChanged && previous)
+      notice("网页会话已更新，旧草稿与输入内容已清除。");
   }
   const issues = document.querySelector<HTMLElement>("#sync-issues");
   if (issues) {

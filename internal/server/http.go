@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/access"
+	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
 
@@ -35,10 +36,18 @@ type Server struct {
 	mcpHandlers map[string]http.Handler
 	static      fs.FS
 	idle        *idleState
+	device      *deviceState
 	maintenance sync.Mutex
 }
 
 func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, error) {
+	deviceDir, err := platform.Canonical(deviceDir)
+	if err != nil {
+		return nil, err
+	}
+	if err = platform.SeparateDirectories(v.Status().Directory, deviceDir); err != nil {
+		return nil, err
+	}
 	c, err := newClients(deviceDir)
 	if err != nil {
 		return nil, err
@@ -51,7 +60,11 @@ func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, erro
 	if err != nil {
 		return nil, err
 	}
-	return &Server{idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}, nil
+	device, err := loadDevice(deviceDir, u.Host)
+	if err != nil {
+		return nil, err
+	}
+	return &Server{device: device, idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}, nil
 }
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -90,11 +103,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.FS(s.static)).ServeHTTP(w, r)
 		return
 	}
-	_, session := s.session(w, r, false)
+	sessionID, session := s.session(w, r, r.Method == "GET" && r.URL.Path == "/api/state")
 	if session == nil {
 		apiError(w, errors.New("请先打开资料库网页"), http.StatusUnauthorized)
 		return
 	}
+	s.authenticateTrusted(r, sessionID, session)
 	if r.Method != "GET" {
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Keyfolio-CSRF")), []byte(session.CSRF)) != 1 {
 			apiError(w, errors.New("请求校验失败，请刷新网页"), 403)
@@ -119,7 +133,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.2.0-dev"})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.3.0-dev", "device_notice": s.deviceNotice()})
 	case "/api/vault/create", "/api/vault/unlock":
 		if !method(w, r, "POST") {
 			return
@@ -175,6 +189,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			apiError(w, errors.New("请输入绝对目录路径"), 400)
 			return
 		}
+		if err := platform.SeparateDirectories(in.Directory, s.deviceDir); err != nil {
+			apiError(w, err, 400)
+			return
+		}
 		if err := s.Vault.SelectDirectory(in.Directory); err != nil {
 			apiError(w, err, 400)
 			return
@@ -222,6 +240,9 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request, create bool) (s
 	return id, &copySession
 }
 func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
+	if s.serveDevice(w, r) {
+		return
+	}
 	if s.serveMaintenance(w, r) {
 		return
 	}

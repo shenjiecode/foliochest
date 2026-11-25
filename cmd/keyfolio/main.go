@@ -28,6 +28,10 @@ func main() {
 	root := flag.String("vault", "", "资料库目录；也可以在网页选择")
 	listen := flag.String("listen", "127.0.0.1:7463", "仅限回环地址")
 	flag.Parse()
+	*device, err = filepath.Abs(*device)
+	if err != nil {
+		log.Fatal(err)
+	}
 	host, _, err := net.SplitHostPort(*listen)
 	if err != nil {
 		log.Fatal(err)
@@ -64,6 +68,7 @@ func main() {
 	srv := &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 << 10}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	app.TryAutoUnlock(ctx)
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
@@ -87,7 +92,7 @@ func main() {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	fmt.Printf("Keyfolio 0.2.0-dev\n网页: %s\n资料库: %s\n当前为开发预览，请仅使用合成测试数据。\n", baseURL, *root)
+	fmt.Printf("Keyfolio 0.3.0-dev\n网页: %s\n资料库: %s\n当前为开发预览，请仅使用合成测试数据。\n", baseURL, *root)
 	if err = srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
