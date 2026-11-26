@@ -4,6 +4,12 @@
 
 FolioChest / 资料匣（原名 Keyfolio）当前为 `0.6.1-dev` 原型。实际完成与待做事项以 README 为准。用户要求写完后提交并 push；提交前完成测试并检查不包含真实资料或运行目录。
 
+## 分支与发布
+
+- 日常修改使用 `develop`；需要发布时直接合并到 `main`，不要求 PR 或人工审批。不自动把每次开发提交同步 main。
+- 分支 push 只运行构建 workflow；`vX.Y.Z` 或 `vX.Y.Z-rc.N/beta.N/alpha.N` tag 触发自动 Release。只有用户明确要求发布对应版本时才推 tag，不为验证 workflow 擅自发版。
+- 发布流程见 `docs/RELEASING.md`。当前私有仓库套餐不支持分支规则，不声称 main 已有服务器强制保护。
+
 ## 阅读顺序
 
 1. `README.md`：项目定位和当前状态。

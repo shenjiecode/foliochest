@@ -45,6 +45,10 @@ Windows 固定默认安装目录为当前用户的 `LocalAppData/Programs/FolioC
 
 Linux 使用包管理器管理 `/usr/bin` 和 `/usr/share` 下的程序文件；升级/卸载前由使用者退出程序并关闭登录自启动。不自动清理各用户的设备凭据或家目录。
 
+## GitHub Actions
+
+`build.yml` 在 main/develop 提交时执行构建，`release.yml` 在版本 tag 推送时调用本工具生成安装包并发布 Release。tag 版本通过 `-version` 同时注入应用和包元信息，详细规则见 [发布流程](../docs/RELEASING.md)。workflow 不运行应用或安装器，也不代表真机验收。
+
 ## 验证边界
 
 已做编译、安装包构建、架构/依赖/文件清单及校验和检查。未执行安装脚本，也未在 Windows/Fedora/Debian 真机完成安装、升级、卸载回归。x86 仅为实验性构建，不等于已验收支持。当前没有代码签名、自动更新或 macOS 安装包。

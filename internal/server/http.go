@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/access"
+	"github.com/shenjiecode/keyfolio/internal/buildinfo"
 	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
@@ -163,7 +164,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.6.1-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": buildinfo.Version, "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
 	case "/api/app/quit":
 		if !method(w, r, "POST") {
 			return

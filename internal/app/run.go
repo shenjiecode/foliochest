@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shenjiecode/keyfolio/internal/buildinfo"
 	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/server"
 	"github.com/shenjiecode/keyfolio/internal/vault"
@@ -147,7 +148,7 @@ func run() error {
 	if displayRoot == "" {
 		displayRoot = "尚未选择资料库"
 	}
-	fmt.Printf("资料匣 / FolioChest 0.6.1-dev\n网页: %s\n资料库: %s\n关闭网页不会退出后台；请使用网页中的退出按钮。\n", baseURL, displayRoot)
+	fmt.Printf("资料匣 / FolioChest %s\n网页: %s\n资料库: %s\n关闭网页不会退出后台；请使用网页中的退出按钮。\n", buildinfo.Version, baseURL, displayRoot)
 	err = srv.Serve(listener)
 	stop()
 	<-shutdownDone

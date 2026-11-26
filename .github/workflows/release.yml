@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+      commit: ${{ steps.validate.outputs.commit }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate version and main ancestry
+        id: validate
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$ ]]; then
+            echo 'Use vX.Y.Z or vX.Y.Z-rc.N / -beta.N / -alpha.N' >&2
+            exit 1
+          fi
+          git merge-base --is-ancestor HEAD refs/remotes/origin/main
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+      - name: Install packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nsis
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.49.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Build all release packages
+        env:
+          VERSION: ${{ steps.validate.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix web ci --no-audit --no-fund
+          npm --prefix web run build
+          go run ./tools/package -version "$VERSION" -installers -windows-x86
+          cd dist
+          sha256sum --check "SHA256SUMS-$VERSION.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-${{ github.sha }}
+          path: dist
+      - name: Publish only complete, verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Detect a moved tag or a rewritten main after the build.
+          test "$(gh api "repos/$GH_REPO/commits/$TAG" --jq .sha)" = "$COMMIT"
+          status=$(gh api "repos/$GH_REPO/compare/$COMMIT...main" --jq .status)
+          [[ "$status" == ahead || "$status" == identical ]]
+          cd dist
+          sha256sum --check "SHA256SUMS-$VERSION.txt"
+          test "$(wc -l < "SHA256SUMS-$VERSION.txt")" -eq 10
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to overwrite it.' >&2
+            exit 1
+          fi
+          prerelease=false
+          [[ "$VERSION" != *-* ]] || prerelease=true
+          notes='自动构建的 Windows x64/x86 与 Linux amd64/arm64 安装包和免安装包。x86 为实验性目标。当前未签名，构建成功不代表真机验收；安装前请校验 SHA-256。升级前保存草稿并退出旧程序。'
+          # Leave a draft on upload failure, never a partially published release.
+          gh release create "$TAG" --verify-tag --draft --title "资料匣 $TAG" --generate-notes --notes "$notes" --prerelease="$prerelease"
+          gh release upload "$TAG" ./*
+          gh release edit "$TAG" --draft=false --prerelease="$prerelease"

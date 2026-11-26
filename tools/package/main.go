@@ -18,6 +18,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"github.com/shenjiecode/keyfolio/internal/buildinfo"
 )
 
 func main() {
@@ -183,7 +185,7 @@ func archive(dir, output string, windows bool) error {
 	return gzipErr
 }
 func run() error {
-	version := flag.String("version", "0.6.1-dev", "package version")
+	version := flag.String("version", buildinfo.Version, "package and application version")
 	withInstallers := flag.Bool("installers", false, "also build NSIS Windows installers and nFPM DEB/RPM packages")
 	windowsX86 := flag.Bool("windows-x86", false, "include experimental Windows 32-bit packages")
 	flag.Parse()
@@ -217,7 +219,7 @@ func run() error {
 			return err
 		}
 		binary := "foliochest"
-		ldflags := "-s -w"
+		ldflags := "-s -w -X github.com/shenjiecode/keyfolio/internal/buildinfo.Version=" + *version
 		resource := "cmd/foliochest/resource_windows_" + target.arch + ".syso"
 		if target.os == "windows" {
 			if _, e := os.Lstat(resource); e == nil {
