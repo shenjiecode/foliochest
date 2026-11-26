@@ -214,4 +214,6 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o bin/foliochest-linux
 - 设备设置目录必须在资料库之外；不要同步本机配置和浏览器资料。同一 `--device-dir` 暂只支持一个运行实例，不做多进程设备配置协调。
 - 实验性格式及更详细的安全边界见 [FORMAT](docs/FORMAT.md) 和 [BOUNDARIES](docs/BOUNDARIES.md)。
 
-名称已确定为 FolioChest / 资料匣，目前没有选定开源许可证。
+## 许可证
+
+FolioChest / 资料匣采用 [MIT License](LICENSE)。第三方依赖及复制的组件保留各自的许可证与版权声明。
