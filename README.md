@@ -83,6 +83,27 @@ make build
 
 `make build` 同时生成 `bin/foliochest` 和兼容入口 `bin/keyfolio`；旧命令仍可用。现有目录、系统凭据命名空间、Cookie 与加密域不因品牌改名而搬动或更换，旧启动项仍可识别和停用。更换可执行文件路径后，需在网页重新保存启动项。仓库与 Go module 暂保留原 `github.com/shenjiecode/keyfolio` 路径，不自动修改 harness 配置。
 
+## 新界面设计预览（未接入资料库）
+
+独立的 React + TypeScript + shadcn/ui 设计稿，用于确认整体改版方向。原 DOM 前端和运行程序未替换，版本仍为 `0.5.0-dev`。
+
+```bash
+npm --prefix web ci
+npm --prefix web run build:preview
+npm --prefix web run preview
+```
+
+- 工作区：http://127.0.0.1:7464/
+- 解锁入口：http://127.0.0.1:7464/?screen=unlock
+- 备用审批示例：http://127.0.0.1:7464/?approval=1 。默认不常驻“待审批”导航，有未处理请求时才显示顶栏提示；日常确认应在发起请求的 harness 内完成。
+- 可浏览分组、搜索、编辑示例、查看属性/附件/历史、体验回收站及审批示意、切换设置分区。打开/创建/恢复独立展示，不堆到解锁表单中。
+- 仅使用明确标记的合成资料，刷新或锁定后重置。密码字段只读，不接收密码；附件、备份、设备和 MCP 不连接真实功能。
+- 来源：`web/src/preview/`，共享组件：`web/src/components/ui/`；产物位于被忽略的 `.local/ui-v0/`，不进入 `web/dist/` 或 Go 嵌入资源。
+- 只监听 loopback，静态预览不代理 API；不访问系统凭据、启动项或运行资料库。生产 HTTP/MCP、数据格式和 CSP 保持不变。
+- v0 设计方向已确认，不代表 React 功能迁移完成。完整状态、安全回归、严格 CSP 适配与各系统验收尚待后续实施。设计规则见 [DESIGN §15](docs/DESIGN.md#15-网页整体改版--可点击设计预览)。
+
+本轮预览检查：构建与 TypeScript/前端测试、Go vet 与非缓存 race 测试、Windows amd64/Linux arm64 交叉构建通过；原 `web/dist/` 四个资源的 SHA-256 未变。浏览器抽查了默认无审批提示、示例同意/拒绝后提示消失、只读密码字段、草稿保留及锁定清理；1440×900 工作区、1280×800 解锁页和 390×740 窄窗口未出现页面级溢出。静态预览不提供 API 或写入路由，无外部运行时请求。以上不等于真实资料库迁移或 harness 端到端验收。
+
 ## 设备授权、自启动与主密码
 
 在“连接与设置”分别配置，默认均关闭：
