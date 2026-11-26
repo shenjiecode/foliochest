@@ -69,7 +69,7 @@ func (b *testBrowser) request(method, path string, body any, csrf string) (int, 
 	req, _ := http.NewRequest(method, b.url+path, reader)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Keyfolio-CSRF", csrf)
+		req.Header.Set("X-FolioChest-CSRF", csrf)
 	}
 	resp, err := b.http.Do(req)
 	if err != nil {

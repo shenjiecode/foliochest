@@ -1,0 +1,119 @@
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "./workspace.css";
+@import "./flows.css";
+@import "./product.css";
+@source "../components";
+@source "../features";
+@source "../app.tsx";
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #202924;
+  --card: #ffffff;
+  --card-foreground: #202924;
+  --popover: #ffffff;
+  --popover-foreground: #202924;
+  --primary: #24564a;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf0eb;
+  --secondary-foreground: #24564a;
+  --muted: #f4f5f2;
+  --muted-foreground: #65726a;
+  --accent: #eaf0eb;
+  --accent-foreground: #24564a;
+  --destructive: #9c3e36;
+  --border: #dce2dc;
+  --input: #dce2dc;
+  --ring: #24564a;
+  --radius: 8px;
+  --font-interface:
+    "Noto Sans CJK SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-code: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --overlay: rgb(32 41 36 / 24%);
+  --elevation: 0 16px 48px rgb(32 41 36 / 12%);
+}
+@theme inline {
+  --font-sans: var(--font-interface);
+  --font-mono: var(--font-code);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #app {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: var(--font-interface);
+    color: var(--foreground);
+    background: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+    font-synthesis: none;
+  }
+  button:not(:disabled),
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    text-wrap: pretty;
+  }
+  input,
+  textarea {
+    min-width: 0;
+  }
+  a {
+    color: var(--primary);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+}

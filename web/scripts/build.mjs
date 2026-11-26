@@ -1,16 +1,34 @@
 import { mkdir, copyFile, rm } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
-await rm("dist", { recursive: true, force: true });
-await mkdir("dist", { recursive: true });
+const web = resolve(dirname(fileURLToPath(import.meta.url)), ".."),
+  out = resolve(web, "dist");
+await rm(out, { recursive: true, force: true });
+await mkdir(out, { recursive: true });
 await build({
-  entryPoints: ["src/main.ts"],
+  absWorkingDir: web,
+  entryPoints: ["src/main.tsx"],
   bundle: true,
   format: "esm",
   target: "es2022",
-  outfile: "dist/main.js",
+  jsx: "automatic",
+  minify: true,
+  define: { "process.env.NODE_ENV": '"production"' },
+  outfile: resolve(out, "main.js"),
   legalComments: "eof",
 });
-await Promise.all([
-  copyFile("index.html", "dist/index.html"),
-  copyFile("src/style.css", "dist/style.css"),
-]);
+execFileSync(
+  process.execPath,
+  [
+    resolve(web, "node_modules/@tailwindcss/cli/dist/index.mjs"),
+    "-i",
+    "src/styles/index.css",
+    "-o",
+    resolve(out, "styles.css"),
+    "--minify",
+  ],
+  { cwd: web, stdio: "inherit" },
+);
+await copyFile(resolve(web, "index.html"), resolve(out, "index.html"));

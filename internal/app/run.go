@@ -1,4 +1,4 @@
-// Package app is shared by the FolioChest command and its legacy keyfolio alias.
+// Package app runs the FolioChest local service.
 package app
 
 import (
@@ -96,7 +96,7 @@ func Run() {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	fmt.Printf("FolioChest / 资料匣 0.5.0-dev\n网页: %s\n资料库: %s\n当前为开发预览，请仅使用合成测试数据。\n", baseURL, *root)
+	fmt.Printf("FolioChest / 资料匣 0.6.0-dev\n网页: %s\n资料库: %s\n当前为开发版本，请先使用合成测试数据。\n", baseURL, *root)
 	if err = srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

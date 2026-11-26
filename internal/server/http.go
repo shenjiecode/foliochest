@@ -72,7 +72,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+	w.Header().Set("Content-Security-Policy", contentSecurityPolicy(""))
 	if r.Host != s.host {
 		http.Error(w, "invalid host", http.StatusForbidden)
 		return
@@ -100,8 +100,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "method not allowed", 405)
 			return
 		}
-		if r.URL.Path == "/" {
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
 			s.session(w, r, true)
+			s.servePage(w, r)
+			return
 		}
 		http.FileServer(http.FS(s.static)).ServeHTTP(w, r)
 		return
@@ -114,9 +116,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.authenticateTrusted(r, sessionID, session)
 	if r.Method != "GET" {
 		csrf := r.Header.Get("X-FolioChest-CSRF")
-		if csrf == "" {
-			csrf = r.Header.Get("X-Keyfolio-CSRF")
-		} // compatibility with existing clients
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") || subtle.ConstantTimeCompare([]byte(csrf), []byte(session.CSRF)) != 1 {
 			apiError(w, errors.New("请求校验失败，请刷新网页"), 403)
 			return
@@ -140,7 +139,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.5.0-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.6.0-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
 	case "/api/vault/create", "/api/vault/unlock":
 		if !method(w, r, "POST") {
 			return
