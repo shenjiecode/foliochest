@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, SelectField } from "@/components/common";
+import { Field } from "@/components/common";
+import { ChoiceField, formatChoices } from "@/components/choice-field";
 import {
   ErrorNotice,
   GroupField,
@@ -389,17 +390,13 @@ function RestoreEditor({
             onChange={(e) => setDescription(e.target.value)}
           />
         </Field>
-        <Field id="restore-format" label="正文格式">
-          <SelectField
-            id="restore-format"
-            value={bodyFormat}
-            onChange={(e) => setBodyFormat(e.target.value as Entry["format"])}
-          >
-            <option value="text">纯文本</option>
-            <option value="markdown">Markdown</option>
-            <option value="json">JSON</option>
-          </SelectField>
-        </Field>
+        <ChoiceField
+          id="restore-format"
+          label="正文格式"
+          value={bodyFormat}
+          options={formatChoices}
+          onChange={setBodyFormat}
+        />
         <Field id="restore-value" label="历史正文（可编辑后合并）">
           <Textarea
             id="restore-value"

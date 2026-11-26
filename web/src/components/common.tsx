@@ -78,17 +78,6 @@ export function Field({
     </div>
   );
 }
-export function SelectField({
-  className,
-  children,
-  ...props
-}: ComponentProps<"select">) {
-  return (
-    <select className={cn("field-select", className)} {...props}>
-      {children}
-    </select>
-  );
-}
 export function EmptyState({
   icon,
   title,

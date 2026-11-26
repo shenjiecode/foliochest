@@ -25,7 +25,7 @@ FolioChest / 资料匣（原名 Keyfolio）当前为 `0.6.1-dev` 原型。实际
 - 不擅自添加许可证、遥测、远程服务、手机端、浏览器扩展或 Passkey 认证器。
 - 维护必要的设计变更说明，不默认归档聊天原文。
 - 全包 Go 测试前先执行 `npm --prefix web ci && npm --prefix web run build`，因为 `web/embed.go` 嵌入构建产物。
-- 基本检查：`go test -race ./...`、`go vet ./...`、`npm --prefix web run check`、`npm --prefix web test`。
+- 用户最新要求：当前界面迭代不跑回归、浏览器验收或新增整套测试流程，尽快交由用户手测；等用户明确要求时再统一回归。当前仅做必要的类型检查和构建，并如实说明未回归。原基本检查命令留待统一回归：`go test -race ./...`、`go vet ./...`、`npm --prefix web run check`、`npm --prefix web test`。
 - Windows/其他架构需分别构建及运行验证。
 - 设备解锁材料只进系统凭据库，不允许明文文件回退。设备授权、记住浏览器和自启动默认关闭。系统凭据测试使用隔离 D-Bus、临时 HOME/XDG 或 mock，不读写开发者现有凭据和启动项。
 - 改主密码仅重新包装原库密钥，不等于数据密钥轮换或撤销旧备份；保持此语义并测试。

@@ -8,7 +8,6 @@ import {
   FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,7 +77,6 @@ export function EntryEditor({
       : null,
   );
   const [editing, setEditing] = useState(isNew),
-    [tab, setTab] = useState(isNew ? "properties" : "body"),
     [loading, setLoading] = useState(!isNew),
     [loadError, setLoadError] = useState(""),
     [retry, setRetry] = useState(0);
@@ -174,7 +172,7 @@ export function EntryEditor({
       className="entry-panel"
       onSubmit={(e) => {
         e.preventDefault();
-        void save();
+        if (editing && !loading && !task.busy) void save();
       }}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
@@ -194,7 +192,6 @@ export function EntryEditor({
         </IconButton>
         <div className="entry-heading-copy">
           <h2>{isNew ? "新建资料" : entryKey}</h2>
-          <p>{draft?.description || summary?.description}</p>
         </div>
         {!isNew && (
           <div className="heading-actions">
@@ -234,6 +231,30 @@ export function EntryEditor({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+          </div>
+        )}
+        {draft && !unavailable && (
+          <div className="editor-actions">
+            {editing ? (
+              <>
+                <span className="draft-label">
+                  {dirty.current ? "未保存" : "编辑中"}
+                </span>
+                <Button type="submit" disabled={task.busy || loading}>
+                  {task.busy ? "处理中…" : "保存"}
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={task.busy || loading}
+                onClick={() => setEditing(true)}
+              >
+                <Pencil />
+                编辑
+              </Button>
             )}
           </div>
         )}
@@ -277,41 +298,17 @@ export function EntryEditor({
           disabled={task.busy || loading}
           aria-busy={task.busy || loading}
         >
-          <Tabs className="entry-tabs" value={tab} onValueChange={setTab}>
-            <div className="editor-toolbar">
-              <TabsList>
-                <TabsTrigger value="body">正文</TabsTrigger>
-                <TabsTrigger value="attachments">
-                  附件
-                  <span className="tab-count">
-                    {draft.attachments?.length || 0}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger value="properties">属性</TabsTrigger>
-              </TabsList>
-              <div className="editor-actions">
-                {editing ? (
-                  <>
-                    <span className="draft-label">
-                      {dirty.current ? "未保存" : "编辑中"}
-                    </span>
-                    <Button type="submit" disabled={task.busy || loading}>
-                      {task.busy ? "处理中…" : "保存"}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setEditing(true)}
-                  >
-                    <Pencil />
-                    编辑
-                  </Button>
-                )}
-              </div>
-            </div>
-            <TabsContent className="content-pane" value="body">
+          <div className="entry-document">
+            <Properties
+              entry={draft}
+              groups={groups}
+              format={format}
+              editable={editing}
+              isNew={isNew}
+              onChange={update}
+            />
+            <section className="entry-body" aria-label="正文">
+              <h3 className="document-section-heading">正文</h3>
               {editing ? (
                 <textarea
                   className="source-editor"
@@ -332,43 +329,27 @@ export function EntryEditor({
                   {draft.value}
                 </pre>
               )}
-            </TabsContent>
-            <TabsContent className="content-pane" value="attachments">
-              <Attachments
-                files={draft.attachments || []}
-                editable={editing}
-                busy={task.busy}
-                onAdd={(files) =>
-                  void task.run(
-                    (ctx) =>
-                      addAttachments(
-                        draft.attachments || [],
-                        files,
-                        ctx.assert,
-                      ),
-                    (attachments) => update({ attachments }),
-                  )
-                }
-                onRemove={(i) =>
-                  update({
-                    attachments: (draft.attachments || []).filter(
-                      (_, n) => n !== i,
-                    ),
-                  })
-                }
-              />
-            </TabsContent>
-            <TabsContent className="content-pane" value="properties">
-              <Properties
-                entry={draft}
-                groups={groups}
-                format={format}
-                editable={editing}
-                isNew={isNew}
-                onChange={update}
-              />
-            </TabsContent>
-          </Tabs>
+            </section>
+            <Attachments
+              files={draft.attachments || []}
+              editable={editing}
+              busy={task.busy}
+              onAdd={(files) =>
+                void task.run(
+                  (ctx) =>
+                    addAttachments(draft.attachments || [], files, ctx.assert),
+                  (attachments) => update({ attachments }),
+                )
+              }
+              onRemove={(i) =>
+                update({
+                  attachments: (draft.attachments || []).filter(
+                    (_, n) => n !== i,
+                  ),
+                })
+              }
+            />
+          </div>
         </fieldset>
       )}
       {draft && (

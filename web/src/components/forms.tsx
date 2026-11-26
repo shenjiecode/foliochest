@@ -155,6 +155,7 @@ export function GroupField({
   format,
   id = "entry-group",
   disabled = false,
+  compact = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -162,6 +163,7 @@ export function GroupField({
   format: number;
   id?: string;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   return (
     <Field
@@ -170,7 +172,9 @@ export function GroupField({
       note={
         format < 3
           ? "分组需要格式 3，可在设置中备份并升级。"
-          : "明文，留空为未分组"
+          : compact
+            ? undefined
+            : "明文，留空为未分组"
       }
     >
       <Input

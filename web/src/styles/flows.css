@@ -428,9 +428,6 @@
   .entry-heading {
     padding-inline: 24px;
   }
-  .editor-toolbar {
-    padding-inline: 24px;
-  }
 }
 @media (max-width: 900px) {
   .app-layout {
@@ -495,13 +492,6 @@
     display: inline-flex;
     margin-left: -8px;
   }
-  .editor-toolbar {
-    padding: 0 16px 12px;
-    gap: 6px;
-  }
-  .editor-toolbar [data-slot="tabs-trigger"] {
-    min-width: 50px;
-  }
   .article {
     padding: 28px 24px 48px;
   }
@@ -548,7 +538,6 @@
   .field-pair {
     grid-template-columns: minmax(0, 1fr);
   }
-  .property-panel,
   .attachments-panel {
     padding: 24px;
   }

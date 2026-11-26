@@ -1,7 +1,8 @@
 import { Download, File, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, IconButton, SelectField } from "@/components/common";
+import { Field, IconButton } from "@/components/common";
+import { ChoiceField, formatChoices } from "@/components/choice-field";
 import { GroupField } from "@/components/forms";
 import {
   type Entry,
@@ -27,80 +28,74 @@ export function Properties({
   onChange: (patch: Partial<Entry>) => void;
 }) {
   return (
-    <div className="property-panel field-grid">
-      <Field
-        id="entry-key"
-        label="Key"
-        note="Key、描述和分组为明文，请勿填写秘密。"
-      >
-        <Input
-          id="entry-key"
-          value={entry.key}
-          required
-          readOnly={!isNew}
-          onChange={(e) => onChange({ key: e.target.value })}
-          spellCheck={false}
-        />
-      </Field>
-      <Field id="entry-description" label="描述">
-        <Textarea
-          id="entry-description"
-          value={entry.description}
-          readOnly={!editable}
-          required
-          rows={3}
-          onChange={(e) => onChange({ description: e.target.value })}
-        />
-      </Field>
-      <GroupField
-        value={entry.group || ""}
-        onChange={(group) => onChange({ group })}
-        groups={groups}
-        format={format}
-        disabled={!editable}
-      />
-      <Field id="entry-format" label="正文格式">
-        <SelectField
-          id="entry-format"
-          value={entry.format}
-          disabled={!editable}
-          onChange={(e) =>
-            onChange({ format: e.target.value as Entry["format"] })
-          }
-        >
-          <option value="text">纯文本</option>
-          <option value="markdown">Markdown</option>
-          <option value="json">JSON</option>
-        </SelectField>
-      </Field>
-      <div className="property-section">
-        <h3 className="section-heading">AI 权限</h3>
-        <div className="field-pair">
-          {(["read_policy", "write_policy"] as const).map((field, i) => (
-            <Field
-              key={field}
-              id={field}
-              label={i === 0 ? "读取正文与附件" : "修改内容"}
-            >
-              <SelectField
-                id={field}
-                value={entry[field]}
-                disabled={!editable}
-                onChange={(e) =>
-                  onChange({ [field]: e.target.value as Policy })
-                }
-              >
-                {Object.entries(policyLabels).map(([v, label]) => (
-                  <option key={v} value={v}>
-                    {label}
-                  </option>
-                ))}
-              </SelectField>
-            </Field>
-          ))}
+    <section className="property-card" aria-label="资料属性">
+      <header className="property-card-heading">
+        <h3>属性</h3>
+        <p>Key、描述和分组为明文，请勿填写秘密。</p>
+      </header>
+      <div className="property-fields">
+        <div className="property-key">
+          <Field id="entry-key" label="Key">
+            <Input
+              id="entry-key"
+              value={entry.key}
+              required
+              readOnly={!isNew}
+              onChange={(e) => onChange({ key: e.target.value })}
+              spellCheck={false}
+            />
+          </Field>
         </div>
+        <div className="property-group">
+          <GroupField
+            value={entry.group || ""}
+            onChange={(group) => onChange({ group })}
+            groups={groups}
+            format={format}
+            disabled={!editable}
+            compact
+          />
+        </div>
+        <div className="property-format">
+          <ChoiceField
+            id="entry-format"
+            label="正文格式"
+            value={entry.format}
+            options={formatChoices}
+            disabled={!editable}
+            onChange={(format) => onChange({ format })}
+          />
+        </div>
+        <div className="property-description">
+          <Field id="entry-description" label="描述">
+            <Textarea
+              id="entry-description"
+              value={entry.description}
+              readOnly={!editable}
+              required
+              rows={1}
+              className="property-description-input"
+              onChange={(e) => onChange({ description: e.target.value })}
+            />
+          </Field>
+        </div>
+        {(["read_policy", "write_policy"] as const).map((field, i) => (
+          <div className="property-policy" key={field}>
+            <ChoiceField
+              id={field}
+              label={i === 0 ? "AI 读取正文与附件" : "AI 修改内容"}
+              value={entry[field]}
+              disabled={!editable}
+              options={Object.entries(policyLabels).map(([value, label]) => ({
+                value: value as Policy,
+                label,
+              }))}
+              onChange={(value) => onChange({ [field]: value })}
+            />
+          </div>
+        ))}
       </div>
-    </div>
+    </section>
   );
 }
 export function Attachments({

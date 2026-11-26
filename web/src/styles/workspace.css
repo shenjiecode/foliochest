@@ -376,40 +376,6 @@
 .back-to-list {
   display: none;
 }
-.entry-tabs {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  gap: 0;
-}
-.editor-toolbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 32px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.editor-toolbar [data-slot="tabs-list"] {
-  background: var(--muted);
-  padding: 3px;
-  height: 34px;
-}
-.editor-toolbar [data-slot="tabs-trigger"] {
-  min-width: 60px;
-  font-size: 12px;
-  gap: 6px;
-}
-.tab-count {
-  font-size: 10px;
-  color: var(--muted-foreground);
-}
-.editor-toolbar [data-slot="button"] {
-  height: 32px;
-  font-size: 12px;
-}
 .editor-actions {
   display: flex;
   gap: 8px;
@@ -418,15 +384,6 @@
 .draft-label {
   font-size: 11px;
   color: var(--muted-foreground);
-}
-.content-pane {
-  flex: 1;
-  min-height: 0;
-  margin: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
 }
 .article {
   max-width: 840px;
@@ -560,7 +517,6 @@
   width: 13px;
   height: 13px;
 }
-.property-panel,
 .attachments-panel {
   padding: 28px 32px;
   max-width: 760px;
@@ -575,20 +531,6 @@
   color: var(--muted-foreground);
   font-size: 12px;
 }
-.field-select {
-  width: 100%;
-  min-width: 0;
-  height: 36px;
-  border: 1px solid var(--border);
-  background: var(--background);
-  padding: 0 10px;
-  border-radius: 6px;
-  color: var(--foreground);
-}
-.field-select:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
 .field-grid {
   display: grid;
   gap: 20px;
@@ -602,11 +544,6 @@
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 20px;
-}
-.property-section + .property-section {
-  padding-top: 28px;
-  border-top: 1px solid var(--border);
-  margin-top: 28px;
 }
 .static-field {
   font-size: 14px;
