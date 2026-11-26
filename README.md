@@ -81,7 +81,7 @@ make build
 
 默认设备配置仍位于系统用户配置目录下的 `keyfolio/`。没有 `--vault`、已记住的位置或实际存在的旧默认目录时，程序保持“尚未选择资料库”，不创建或预填 `vault/`、`demo-vault`。可用 `--vault` 显式指定位置；已记住的位置丢失时保留路径并提示，不初始化空库。现有旧默认目录仍可打开，不搬动资料。本机接入凭据和会话不放入资料库目录。
 
-`make build` 只生成 `bin/foliochest`。旧命令入口已移除；已有启动项若指向旧二进制，需要在新程序的设备设置中重新登记。现有目录、系统凭据命名空间、Cookie 与加密域不因品牌改名而搬动或更换，旧启动项仍可识别和停用。更换可执行文件路径后，需在网页重新保存启动项。仓库与 Go module 暂保留原 `github.com/shenjiecode/keyfolio` 路径，不自动修改 harness 配置。
+`make build` 只生成 `bin/foliochest`。旧命令入口已移除；已有启动项若指向旧二进制，需要在新程序的设备设置中重新登记。现有目录、系统凭据命名空间、Cookie 与加密域不因品牌改名而搬动或更换，旧启动项仍可识别和停用。更换可执行文件路径后，需在网页重新保存启动项。GitHub 仓库已更名为 [shenjiecode/foliochest](https://github.com/shenjiecode/foliochest)。Go module 暂保留原 `github.com/shenjiecode/keyfolio` 路径，本地资料目录和加密标识不变，不自动修改 harness 配置。
 
 ## 网页使用
 
