@@ -3,7 +3,7 @@ import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-const dir = await mkdtemp(join(tmpdir(), "keyfolio-web-test-"));
+const dir = await mkdtemp(join(tmpdir(), "foliochest-web-test-"));
 try {
   for (const test of (await readdir("tests"))
     .filter((name) => name.endsWith(".test.ts"))

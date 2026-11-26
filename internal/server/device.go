@@ -331,8 +331,9 @@ func (s *Server) serveDevice(w http.ResponseWriter, r *http.Request) bool {
 			return true
 		}
 		var in struct {
-			Password  string `json:"password"`
-			Confirmed bool   `json:"confirmed"`
+			Password     string `json:"password"`
+			Confirmed    bool   `json:"confirmed"`
+			TargetFormat int    `json:"target_format"`
 		}
 		if !decode(w, r, &in) {
 			return true
@@ -342,7 +343,11 @@ func (s *Server) serveDevice(w http.ResponseWriter, r *http.Request) bool {
 			apiError(w, errors.New("请先备份并确认已更新所有设备程序、暂停其他设备写入"), 400)
 			return true
 		}
-		if s.Vault.Status().Format != 1 {
+		if in.TargetFormat != vault.FormatVersion {
+			apiError(w, errors.New("升级目标格式已变化，请刷新网页后重新确认"), 409)
+			return true
+		}
+		if s.Vault.Status().Format >= vault.FormatVersion {
 			apiError(w, errors.New("资料库不需要升级"), 409)
 			return true
 		}

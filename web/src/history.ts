@@ -1,6 +1,8 @@
 import { API, esc, download } from "./ui";
+import { groupInput, groupLabel } from "./groups";
 type Version = {
   entry_id: string;
+  group?: string;
   revision: string;
   key: string;
   description: string;
@@ -62,6 +64,12 @@ export async function mountHistory(
     };
   }
   const conflict = history.state === "conflict";
+  const currentGroups = [
+    ...new Set(
+      history.versions.filter((v) => v.head).map((v) => v.group || ""),
+    ),
+  ];
+  const groupConflict = currentGroups.length > 1;
   const collision =
     new Set(history.versions.filter((v) => v.head).map((v) => v.entry_id))
       .size > 1;
@@ -70,7 +78,7 @@ export async function mountHistory(
     : !["ready", "conflict", "deleted"].includes(history.state)
       ? "当前文件尚未完整，只能查看可用历史，不能恢复写入。"
       : "";
-  panel.innerHTML = `<div class="editor-heading"><div><p class="eyebrow">HISTORY / RECOVERY</p><h2>历史与冲突</h2></div><button class="button secondary" data-refresh-history type="button">刷新版本（${history.versions.length}）</button></div><p class="history-key">${esc(key)}</p><p class="small muted">${conflict ? "选择一个分支作为基础，编辑正文合并。所有当前分支都会成为新版本的父版本，权限按当前分支取更严格的策略。" : "恢复将新建一个版本，不删除历史，也不恢复旧权限。"}</p><div class="version-list" aria-label="历史版本">${history.versions.map((v) => `<button class="version-button" data-revision="${esc(v.revision)}" ${v.available ? "" : "disabled"}><span>${v.deleted ? "删除记录" : v.head ? "当前分支" : "历史版本"} · ${esc(v.key)} · ${esc(v.revision.slice(0, 8))}</span><time>${esc(new Date(v.updated_at).toLocaleString())}</time></button>`).join("")}</div><div class="history-detail"></div>${conflict && !blockedReason && ctx.vaultFormat >= 2 ? '<div class="editor-tools"><button type="button" class="text-button danger" data-delete-branches>删除全部当前分支</button></div>' : ""}`;
+  panel.innerHTML = `<div class="editor-heading"><div><p class="eyebrow">HISTORY / RECOVERY</p><h2>历史与冲突</h2></div><button class="button secondary" data-refresh-history type="button">刷新版本（${history.versions.length}）</button></div><p class="history-key">${esc(key)}</p><p class="small muted">${conflict ? "选择一个分支作为基础，编辑正文合并。所有当前分支都会成为新版本的父版本，权限按当前分支取更严格的策略。" : "恢复将新建一个版本，不删除历史，也不恢复旧权限。"}</p><div class="version-list" aria-label="历史版本">${history.versions.map((v) => `<button class="version-button" data-revision="${esc(v.revision)}" ${v.available ? "" : "disabled"}><span>${v.deleted ? "删除记录" : v.head ? "当前分支" : "历史版本"} · ${esc(v.key)} · ${esc(groupLabel(v.group || ""))} · ${esc(v.revision.slice(0, 8))}</span><time>${esc(new Date(v.updated_at).toLocaleString())}</time></button>`).join("")}</div><div class="history-detail"></div>${conflict && !blockedReason && !groupConflict && ctx.vaultFormat >= 2 ? '<div class="editor-tools"><button type="button" class="text-button danger" data-delete-branches>删除全部当前分支</button></div>' : ""}`;
   const deleteBranches = panel.querySelector<HTMLButtonElement>(
     "[data-delete-branches]",
   );
@@ -130,7 +138,7 @@ export async function mountHistory(
       ? "此版本是删除记录，不含正文。请选择删除前的内容版本恢复。"
       : blockedReason;
     const canRestore = !reason;
-    detail.innerHTML = `<form class="history-form">${ctx.vaultFormat >= 2 ? `<label>恢复后的 key<input name="target_key" maxlength="160" required spellcheck="false" value="${esc(key)}"></label>` : ""}<p class="small muted">所选版本原 key：${esc(entry.key)}。恢复默认保留当前名称，权限采用当前策略；历史不会被删除。</p><label>description<textarea name="description" required maxlength="1000" rows="2">${esc(entry.description)}</textarea></label><label>正文格式<select name="format">${["text", "markdown", "json"].map((f) => `<option value="${f}" ${f === entry.format ? "selected" : ""}>${f}</option>`).join("")}</select></label><label>历史正文（可编辑后合并）<textarea name="value" class="code-editor" rows="10">${esc(entry.value)}</textarea></label><p class="small muted">附件沿用所选版本，其他版本的附件仍保留在历史里。</p><div class="history-attachments">${attachments.map((a, i) => `<div class="attachment"><span class="attachment-name">${esc(a.name)}</span><button type="button" class="text-button" data-history-download="${i}">下载</button></div>`).join("") || '<p class="muted">此版本没有附件。</p>'}</div><p class="small muted">恢复后 AI 读取/修改策略：${conflict ? "当前分支中更严格的策略" : "保持当前设置"}。</p><button class="button primary" type="submit" ${canRestore ? "" : "disabled"}>${conflict ? "保存合并版本" : "恢复为新版本"}</button>${canRestore ? "" : `<p class="inline-warning">${esc(reason)}</p>`}</form>`;
+    detail.innerHTML = `<form class="history-form">${ctx.vaultFormat >= 2 ? `<label>恢复后的 key<input name="target_key" maxlength="160" required spellcheck="false" value="${esc(key)}"></label>` : ""}${ctx.vaultFormat >= 3 ? groupInput(groupConflict ? "" : currentGroups[0] || "", ctx.vaultFormat, "restore-group") : ""}${groupConflict ? `<label class="device-check"><input type="checkbox" name="confirm_group" required><span>当前分支的分组不一致（${currentGroups.map(groupLabel).map(esc).join("、")}），我已明确选择恢复后的分组；留空表示未分组。</span></label>` : ""}<p class="small muted">所选历史分组：${esc(groupLabel(entry.group || ""))}；恢复默认保留当前分组。所选版本原 key：${esc(entry.key)}。恢复默认保留当前名称，权限采用当前策略；历史不会被删除。</p><label>description<textarea name="description" required maxlength="1000" rows="2">${esc(entry.description)}</textarea></label><label>正文格式<select name="format">${["text", "markdown", "json"].map((f) => `<option value="${f}" ${f === entry.format ? "selected" : ""}>${f}</option>`).join("")}</select></label><label>历史正文（可编辑后合并）<textarea name="value" class="code-editor" rows="10">${esc(entry.value)}</textarea></label><p class="small muted">附件沿用所选版本，其他版本的附件仍保留在历史里。</p><div class="history-attachments">${attachments.map((a, i) => `<div class="attachment"><span class="attachment-name">${esc(a.name)}</span><button type="button" class="text-button" data-history-download="${i}">下载</button></div>`).join("") || '<p class="muted">此版本没有附件。</p>'}</div><p class="small muted">恢复后 AI 读取/修改策略：${conflict ? "当前分支中更严格的策略" : "保持当前设置"}。</p><button class="button primary" type="submit" ${canRestore ? "" : "disabled"}>${conflict ? "保存合并版本" : "恢复为新版本"}</button>${canRestore ? "" : `<p class="inline-warning">${esc(reason)}</p>`}</form>`;
     const form = detail.querySelector<HTMLFormElement>("form")!;
     form.oninput = () => {
       dirty = true;
@@ -169,6 +177,9 @@ export async function mountHistory(
             target_key: values.get("target_key") || key,
             expected_heads: history.heads,
             source_revision: revision,
+            ...(ctx.vaultFormat >= 3
+              ? { group: String(values.get("group") || "").trim() }
+              : {}),
             description: values.get("description"),
             value: values.get("value"),
             format: values.get("format"),

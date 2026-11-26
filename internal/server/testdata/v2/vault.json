@@ -1,0 +1,10 @@
+{
+  "format": 2,
+  "vault_id": "c1f9a25e53c89f751c03d131425af6bd",
+  "kdf": "argon2id",
+  "salt": "nbYiWtC2LgzGZAftFyxqKA==",
+  "memory_kib": 65536,
+  "iterations": 3,
+  "parallelism": 1,
+  "wrapped_key": "sifim0hcAW8S+ePyVK25lBWayyPGfob4/UihdpKlk1PWj2O0371tXgAai6GdzRi6h/koIyLBg/WM0cAU"
+}

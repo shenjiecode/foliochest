@@ -172,7 +172,7 @@ func (nativeCredentials) Set(ctx context.Context, id string, value []byte) error
 	if err != nil {
 		return err
 	}
-	properties := map[string]dbus.Variant{"org.freedesktop.Secret.Item.Label": dbus.MakeVariant("Keyfolio device unlock"), "org.freedesktop.Secret.Item.Attributes": dbus.MakeVariant(map[string]string{"application": ServiceName, "credential": id})}
+	properties := map[string]dbus.Variant{"org.freedesktop.Secret.Item.Label": dbus.MakeVariant("FolioChest device unlock"), "org.freedesktop.Secret.Item.Attributes": dbus.MakeVariant(map[string]string{"application": ServiceName, "credential": id})}
 	var item, prompt dbus.ObjectPath
 	err = obj.CallWithContext(ctx, "org.freedesktop.Secret.Collection.CreateItem", 0, properties, secretValue{Session: session, Parameters: []byte{}, Value: value, ContentType: "application/octet-stream"}, true).Store(&item, &prompt)
 	if err != nil {

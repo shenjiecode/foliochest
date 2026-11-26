@@ -41,7 +41,7 @@ func (nativeCredentials) Set(ctx context.Context, id string, value []byte) error
 	}
 	credential := wincred.NewGenericCredential(ServiceName + "/" + id)
 	credential.Persist = wincred.PersistLocalMachine
-	credential.UserName = "Keyfolio"
+	credential.UserName = "FolioChest"
 	credential.CredentialBlob = value
 	if err := credential.Write(); err != nil {
 		return ErrUnavailable

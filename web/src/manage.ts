@@ -67,9 +67,9 @@ export function bindManagement(
     void ctx.run(() => change(true));
 }
 export function upgradeForm(format: number): string {
-  if (format >= 2)
-    return '<section class="settings-card"><p class="eyebrow">STORAGE FORMAT</p><h2>资料库格式 2</h2><p class="small muted">已支持删除记录与重命名。旧程序不能打开当前配置；旧备份仍保留升级前的内容。</p></section>';
-  return '<section class="settings-card device-settings"><p class="eyebrow">STORAGE FORMAT</p><h2>升级资料库格式</h2><p class="small muted">当前是格式 1，可继续读写。删除和重命名需要格式 2。升级只重包装库密钥，不改写历史记录；完成后锁定并停用本机设备授权和浏览器记忆。主密码不变。</p><p class="inline-warning">先下载备份、暂停其他设备写入，并将所有设备程序更新到 0.4.0-dev 或更新版本。旧程序不能打开格式 2；外部同步不能保证配置与记录同时到达。</p><form id="upgrade-form"><input type="text" autocomplete="username" value="Keyfolio" class="sr-only" tabindex="-1"><label for="upgrade-password">当前主密码</label><input id="upgrade-password" type="password" autocomplete="current-password" required><label class="device-check"><input id="upgrade-confirmed" type="checkbox" required><span>我已备份，并已更新所有设备程序、暂停其他设备写入。</span></label><button class="button secondary" type="submit">确认升级并锁定</button></form></section>';
+  if (format >= 3)
+    return '<section class="settings-card"><p class="eyebrow">STORAGE FORMAT</p><h2>资料库格式 3</h2><p class="small muted">支持单层分组、删除记录与重命名。旧程序不能打开当前配置；旧备份仍保留升级前的内容。</p></section>';
+  return `<section class="settings-card device-settings"><p class="eyebrow">STORAGE FORMAT</p><h2>升级资料库格式</h2><p class="small muted">当前是格式 ${format}，可继续原有读写。分组需要格式 3（也支持删除和重命名）。升级只重包装库密钥，不改写历史记录；完成后锁定并停用本机设备授权和浏览器记忆。主密码不变。</p><p class="inline-warning">先下载备份、暂停其他设备写入，并将所有设备程序更新到 FolioChest 0.5.0-dev 或更新版本。旧程序不能打开格式 3；外部同步不能保证配置与记录同时到达。</p><form id="upgrade-form"><input type="text" autocomplete="username" value="FolioChest" class="sr-only" tabindex="-1"><label for="upgrade-password">当前主密码</label><input id="upgrade-password" type="password" autocomplete="current-password" required><label class="device-check"><input id="upgrade-confirmed" type="checkbox" required><span>我已备份，并已更新所有设备程序、暂停其他设备写入，确认升级为格式 3。</span></label><button class="button secondary" type="submit">确认升级为格式 3 并锁定</button></form></section>`;
 }
 export function bindUpgrade(
   api: API,
@@ -96,6 +96,7 @@ export function bindUpgrade(
         const result = await api<{ warning?: string }>("/api/vault/upgrade", {
           password: value,
           confirmed: true,
+          target_format: 3,
         });
         await onUpgraded(result.warning || "");
       } finally {

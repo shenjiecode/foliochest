@@ -40,7 +40,7 @@ func TestDeleteRestoresIdentityAndCurrentPolicy(t *testing.T) {
 	if _, err = v.Commit([]Change{{Key: "entry", Description: ptr("reuse"), Value: ptr("new")}}, true, true); !errors.Is(err, ErrDeleted) {
 		t.Fatal("deleted key reused", err)
 	}
-	for _, list := range []func(string) ([]Summary, error){v.List, v.Search} {
+	for _, list := range []func(string, ...string) ([]Summary, error){v.List, v.Search} {
 		rows, err := list("")
 		if err != nil || len(rows) != 0 {
 			t.Fatal("deletion exposed", rows, err)
@@ -411,7 +411,7 @@ func TestExplicitFormatUpgradePreservesRecordsAndPassword(t *testing.T) {
 	if err = v.Unlock(testPassword); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(before, v.key) || v.Status().Format != 2 {
+	if !bytes.Equal(before, v.key) || v.Status().Format != FormatVersion {
 		t.Fatal("upgrade rotated data key or kept format 1")
 	}
 	nextRaw, _ := os.ReadFile(record)
@@ -447,7 +447,7 @@ func TestFutureFormatWithUnknownFieldsDoesNotFallBack(t *testing.T) {
 	v := testVault(t)
 	add(t, v, "entry", Allow, Allow)
 	path := filepath.Join(v.root, "records", newID()+".json")
-	if err := os.WriteFile(path, []byte(`{"format":3,"future_only_field":true}`), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"format":4,"future_only_field":true}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := v.Get("entry"); err == nil {

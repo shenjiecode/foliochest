@@ -37,7 +37,7 @@ func (s *NativeStartup) desktop() ([]byte, error) {
 	for i := range args {
 		args[i] = desktopQuote(args[i])
 	}
-	return []byte("[Desktop Entry]\nType=Application\nName=Keyfolio\nExec=" + strings.Join(args, " ") + "\nTerminal=false\nX-Keyfolio-Device=" + DeviceID(s.DeviceDir) + "\n"), nil
+	return []byte("[Desktop Entry]\nType=Application\nName=FolioChest\nExec=" + strings.Join(args, " ") + "\nTerminal=false\nX-Keyfolio-Device=" + DeviceID(s.DeviceDir) + "\n"), nil
 }
 func (s *NativeStartup) Status() (StartupStatus, error) {
 	status := StartupStatus{Supported: true}
@@ -53,7 +53,9 @@ func (s *NativeStartup) Status() (StartupStatus, error) {
 	}
 	status.Enabled = !bytes.Contains(raw, []byte("\nHidden=true")) && !bytes.Contains(raw, []byte("\nX-GNOME-Autostart-enabled=false"))
 	expected, e := s.desktop()
-	status.Current = e == nil && bytes.Equal(expected, raw)
+	// A display-name change alone must not invalidate a legacy registration.
+	compatible := bytes.Replace(raw, []byte("\nName=Keyfolio\n"), []byte("\nName=FolioChest\n"), 1)
+	status.Current = e == nil && bytes.Equal(expected, compatible)
 	return status, nil
 }
 func (s *NativeStartup) Set(enabled bool) error {

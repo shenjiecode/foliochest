@@ -77,6 +77,9 @@ func (v *Vault) Delete(in DeleteChange) (Summary, error) {
 	if it.state == "deleted" {
 		return Summary{}, ErrDeleted
 	}
+	if len(itemGroups(it)) > 1 {
+		return Summary{}, errors.New("当前分支的分组不一致，请先合并并确定分组，再删除")
+	}
 	m := it.heads[0].meta
 	m.Key = in.Key
 	m.Parents = parents

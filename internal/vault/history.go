@@ -24,6 +24,7 @@ type RestoreChange struct {
 	ExpectedHeads  []string `json:"expected_heads"`
 	SourceRevision string   `json:"source_revision"`
 	Description    *string  `json:"description,omitempty"`
+	Group          *string  `json:"group,omitempty"`
 	Value          *string  `json:"value,omitempty"`
 	Format         *string  `json:"format,omitempty"`
 }
@@ -156,6 +157,17 @@ func (v *Vault) Restore(in RestoreChange) (Summary, error) {
 		return Summary{}, err
 	}
 	m := Metadata{EntryID: id, Revision: newID(), Parents: actual, Key: target, Description: x.meta.Description, ReadPolicy: read, WritePolicy: write, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	groups := itemGroups(it)
+	if len(groups) > 1 && in.Group == nil {
+		return Summary{}, errors.New("当前分支的分组不一致，请明确选择恢复后的分组")
+	}
+	m.Group = groups[0]
+	if in.Group != nil {
+		m.Group = *in.Group
+	}
+	if m.Group != "" && v.cfg.Format < 3 {
+		return Summary{}, ErrGroupUpgrade
+	}
 	if in.Description != nil {
 		m.Description = *in.Description
 	}

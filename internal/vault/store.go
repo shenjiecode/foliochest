@@ -286,6 +286,9 @@ func (v *Vault) validateBatch(b *batch) error {
 		if err := validateMetadata(m); err != nil {
 			return err
 		}
+		if b.Format < 3 && m.Group != "" {
+			return ErrGroupUpgrade
+		}
 		if b.Format == 1 && m.Deleted {
 			return errors.New("删除记录需要格式 2")
 		}
@@ -349,15 +352,28 @@ func (v *Vault) ready(key string) (*version, error) {
 }
 func summary(it *item) Summary {
 	m := it.heads[0].meta
-	return Summary{EntryID: m.EntryID, Deleted: it.state == "deleted", Key: m.Key, Description: m.Description, Revision: m.Revision, ReadPolicy: m.ReadPolicy, WritePolicy: m.WritePolicy, State: it.state, Versions: it.count}
+	groups := itemGroups(it)
+	group := groups[0]
+	var candidates []string
+	if len(groups) > 1 {
+		group = ""
+		candidates = groups
+	}
+	return Summary{Group: group, CandidateGroups: candidates, EntryID: m.EntryID, Deleted: it.state == "deleted", Key: m.Key, Description: m.Description, Revision: m.Revision, ReadPolicy: m.ReadPolicy, WritePolicy: m.WritePolicy, State: it.state, Versions: it.count}
 }
-func (v *Vault) List(query string) ([]Summary, error)  { return v.list(query, false, false) }
-func (v *Vault) Trash(query string) ([]Summary, error) { return v.list(query, false, true) }
+func (v *Vault) List(query string, group ...string) ([]Summary, error) {
+	return v.list(query, false, false, group)
+}
+func (v *Vault) Trash(query string, group ...string) ([]Summary, error) {
+	return v.list(query, false, true, group)
+}
 
 // Search is a human-only search. MCP discovery must continue to use List.
-func (v *Vault) Search(query string) ([]Summary, error) { return v.list(query, true, false) }
+func (v *Vault) Search(query string, group ...string) ([]Summary, error) {
+	return v.list(query, true, false, group)
+}
 
-func (v *Vault) list(query string, body, deleted bool) ([]Summary, error) {
+func (v *Vault) list(query string, body, deleted bool, group []string) ([]Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if len(v.key) == 0 {
@@ -374,7 +390,10 @@ func (v *Vault) list(query string, body, deleted bool) ([]Summary, error) {
 		}
 		s := summary(it)
 		s.Key = key
-		matches := query == "" || strings.Contains(strings.ToLower(s.Key+" "+s.Description), query)
+		if len(group) > 0 && !groupMatches(s, group[0]) {
+			continue
+		}
+		matches := query == "" || strings.Contains(strings.ToLower(s.Key+" "+s.Description+" "+strings.Join(itemGroups(it), " ")), query)
 		if !matches && body && it.state == "ready" {
 			doc, err := v.document(it.heads[0])
 			if err != nil {
@@ -534,8 +553,16 @@ func (v *Vault) checkChanges(changes []Change, human bool) (bool, error) {
 			return false, errors.New("请求中 key 重复")
 		}
 		seen[c.Key] = true
-		if !human && (c.ReadPolicy != nil || c.WritePolicy != nil) {
+		if !human && (c.ReadPolicy != nil || c.WritePolicy != nil || c.Group != nil) {
 			return false, ErrDenied
+		}
+		if c.Group != nil {
+			if v.cfg.Format < 3 && *c.Group != "" {
+				return false, ErrGroupUpgrade
+			}
+			if err := validateGroup(*c.Group); err != nil {
+				return false, err
+			}
 		}
 		x, err := v.ready(c.Key)
 		if errors.Is(err, ErrNotFound) && human && c.ExpectedRevision == "" {
@@ -556,7 +583,7 @@ func (v *Vault) checkChanges(changes []Change, human bool) (bool, error) {
 			}
 			needs = needs || x.meta.WritePolicy == Ask
 		}
-		if c.Description == nil && c.Value == nil && c.Format == nil && c.Attachments == nil && c.ReadPolicy == nil && c.WritePolicy == nil {
+		if c.Description == nil && c.Value == nil && c.Format == nil && c.Attachments == nil && c.ReadPolicy == nil && c.WritePolicy == nil && c.Group == nil {
 			return false, errors.New("修改内容为空")
 		}
 	}
@@ -587,12 +614,16 @@ func (v *Vault) Commit(changes []Change, human, approved bool) ([]Summary, error
 			m.EntryID = x.meta.EntryID
 			m.Parents = []string{x.meta.Revision}
 			m.Description = x.meta.Description
+			m.Group = x.meta.Group
 			m.ReadPolicy = x.meta.ReadPolicy
 			m.WritePolicy = x.meta.WritePolicy
 			d, err = v.document(x)
 			if err != nil {
 				return nil, err
 			}
+		}
+		if c.Group != nil {
+			m.Group = *c.Group
 		}
 		if c.Description != nil {
 			m.Description = *c.Description

@@ -179,7 +179,7 @@ func (s *Server) serveMaintenance(w http.ResponseWriter, r *http.Request) bool {
 		}
 		s.activity()
 		w.Header().Set("Content-Type", "application/zip")
-		w.Header().Set("Content-Disposition", "attachment; filename=keyfolio-backup-"+time.Now().UTC().Format("20060102-150405")+".zip")
+		w.Header().Set("Content-Disposition", "attachment; filename=foliochest-backup-"+time.Now().UTC().Format("20060102-150405")+".zip")
 		_, _ = w.Write(out)
 	default:
 		return false

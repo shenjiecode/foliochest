@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
 const (
-	FormatVersion      = 2
+	FormatVersion      = 3
 	MaxFileBytes       = 16 << 20
 	MaxPayloadBytes    = 8 << 20
 	MaxAttachmentBytes = 2 << 20
@@ -26,15 +27,16 @@ const (
 func (p Policy) Valid() bool { return p == Allow || p == Ask || p == Deny }
 
 var (
-	ErrLocked      = errors.New("资料库尚未解锁")
-	ErrChanged     = errors.New("资料库配置已变化，请重新解锁")
-	ErrConflict    = errors.New("条目版本已变化或存在冲突，请重新读取版本")
-	ErrUnavailable = errors.New("条目暂不可用，请检查文件同步状态")
-	ErrDenied      = errors.New("该操作已被条目权限拒绝")
-	ErrApproval    = errors.New("该操作需要用户确认")
-	ErrNotFound    = errors.New("条目不存在")
-	ErrUpgrade     = errors.New("此操作需要资料库格式 2，请先备份并在设置页确认升级")
-	ErrDeleted     = errors.New("条目已删除，请从回收站恢复")
+	ErrLocked       = errors.New("资料库尚未解锁")
+	ErrChanged      = errors.New("资料库配置已变化，请重新解锁")
+	ErrConflict     = errors.New("条目版本已变化或存在冲突，请重新读取版本")
+	ErrUnavailable  = errors.New("条目暂不可用，请检查文件同步状态")
+	ErrDenied       = errors.New("该操作已被条目权限拒绝")
+	ErrApproval     = errors.New("该操作需要用户确认")
+	ErrNotFound     = errors.New("条目不存在")
+	ErrUpgrade      = errors.New("此操作需要资料库格式 2，请先备份并在设置页确认升级")
+	ErrGroupUpgrade = errors.New("分组需要资料库格式 3，请先备份并在设置页确认升级")
+	ErrDeleted      = errors.New("条目已删除，请从回收站恢复")
 )
 
 type Attachment struct {
@@ -57,17 +59,20 @@ type Metadata struct {
 	WritePolicy Policy   `json:"write_policy"`
 	UpdatedAt   string   `json:"updated_at"`
 	Deleted     bool     `json:"deleted,omitempty"`
+	Group       string   `json:"group,omitempty"`
 }
 type Summary struct {
-	EntryID     string `json:"entry_id"`
-	Deleted     bool   `json:"deleted,omitempty"`
-	Key         string `json:"key"`
-	Description string `json:"description"`
-	Revision    string `json:"revision"`
-	ReadPolicy  Policy `json:"read_policy"`
-	WritePolicy Policy `json:"write_policy"`
-	State       string `json:"state"`
-	Versions    int    `json:"versions"`
+	Group           string   `json:"group"`
+	CandidateGroups []string `json:"candidate_groups,omitempty"`
+	EntryID         string   `json:"entry_id"`
+	Deleted         bool     `json:"deleted,omitempty"`
+	Key             string   `json:"key"`
+	Description     string   `json:"description"`
+	Revision        string   `json:"revision"`
+	ReadPolicy      Policy   `json:"read_policy"`
+	WritePolicy     Policy   `json:"write_policy"`
+	State           string   `json:"state"`
+	Versions        int      `json:"versions"`
 }
 type Entry struct {
 	Metadata
@@ -77,6 +82,7 @@ type Change struct {
 	Key              string        `json:"key"`
 	ExpectedRevision string        `json:"expected_revision"`
 	Description      *string       `json:"description,omitempty"`
+	Group            *string       `json:"group,omitempty"`
 	Value            *string       `json:"value,omitempty"`
 	Format           *string       `json:"format,omitempty"`
 	Attachments      *[]Attachment `json:"attachments,omitempty"`
@@ -121,8 +127,17 @@ func validateMetadata(m Metadata) error {
 	if strings.TrimSpace(m.Description) == "" || utf8.RuneCountInString(m.Description) > 1000 {
 		return errors.New("description 需为 1–1000 个字符")
 	}
+	if err := validateGroup(m.Group); err != nil {
+		return err
+	}
 	if !m.ReadPolicy.Valid() || !m.WritePolicy.Valid() {
 		return errors.New("无效权限策略")
+	}
+	return nil
+}
+func validateGroup(group string) error {
+	if !utf8.ValidString(group) || utf8.RuneCountInString(group) > 64 || strings.TrimSpace(group) != group || strings.ContainsAny(group, "/\\\\") || strings.ContainsFunc(group, unicode.IsControl) || group == "未分组" {
+		return errors.New("分组最多 64 个字符，不能含首尾空白、控制字符或斜杠；留空表示未分组")
 	}
 	return nil
 }

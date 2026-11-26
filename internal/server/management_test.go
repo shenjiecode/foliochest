@@ -111,7 +111,7 @@ func TestUpgradeLegacyHTTPAndRevokeEnrollment(t *testing.T) {
 	if err = b.app.Access.Decide(request.RequestID, true); err != nil {
 		t.Fatal(err)
 	}
-	body := map[string]any{"password": "wrong-password", "confirmed": true}
+	body := map[string]any{"password": "wrong-password", "confirmed": true, "target_format": vault.FormatVersion}
 	if code, _ := b.request("POST", "/api/vault/upgrade", body, b.csrf); code == 200 {
 		t.Fatal("bad password upgraded")
 	}
@@ -137,17 +137,17 @@ func TestUpgradeLegacyHTTPAndRevokeEnrollment(t *testing.T) {
 		t.Fatal(code)
 	}
 	current, err := b.app.Vault.Get("legacy/synthetic")
-	if err != nil || current.Value != "SYNTHETIC_LEGACY_VALUE" || b.app.Vault.Status().Format != 2 {
+	if err != nil || current.Value != "SYNTHETIC_LEGACY_VALUE" || b.app.Vault.Status().Format != vault.FormatVersion {
 		t.Fatal(err)
 	}
 	code, data = b.request("GET", "/api/state", nil, "")
-	if code != 200 || !strings.Contains(string(data), `"format":2`) {
+	if code != 200 || !strings.Contains(string(data), `"format":3`) {
 		t.Fatal(code, string(data))
 	}
 }
 func TestUpgradeHTTPRequiresConfirmationAndSession(t *testing.T) {
 	b := setupHTTP(t)
-	body := map[string]any{"password": "synthetic-test-password", "confirmed": true}
+	body := map[string]any{"password": "synthetic-test-password", "confirmed": true, "target_format": vault.FormatVersion}
 	if code, _ := b.request("POST", "/api/vault/upgrade", body, "wrong"); code != 403 {
 		t.Fatal(code)
 	}
@@ -161,6 +161,6 @@ func TestUpgradeHTTPRequiresConfirmationAndSession(t *testing.T) {
 	}
 	body["confirmed"] = true
 	if code, _ := b.request("POST", "/api/vault/upgrade", body, b.csrf); code != 409 {
-		t.Fatal("upgraded format 2", code)
+		t.Fatal("upgraded current format", code)
 	}
 }

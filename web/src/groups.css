@@ -1,0 +1,129 @@
+.sidebar .wordmark {
+  font-size: 24px;
+}
+.group-navigation {
+  overflow-y: auto;
+  min-height: 52px;
+  margin-top: 24px;
+}
+.group-nav-heading {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  margin: 0 14px 8px;
+}
+.group-nav-button {
+  width: 100%;
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.group-nav-button > span:first-child {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.group-nav-button .count {
+  flex-shrink: 0;
+}
+.group-tools {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.group-tools > p {
+  margin-top: 10px;
+}
+.group-move-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.group-move-form input {
+  min-width: 120px;
+  flex: 1;
+  font-size: 12px;
+}
+.group-move-form .button {
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.group-move-form > span {
+  width: 100%;
+}
+.group-edit {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.group-edit > p {
+  margin: 12px 0;
+}
+.group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+.group-row th {
+  background: var(--bg);
+  padding: 0 14px;
+}
+.group-fold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 11px 6px;
+  color: var(--ink);
+  font: 12px var(--font);
+}
+.group-fold > span:first-child {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.group-fold .count {
+  margin-left: auto;
+}
+.entry-cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.entry-cell > input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin: 0 0 0 12px;
+}
+.entry-cell .entry-button {
+  min-width: 0;
+  padding-left: 12px;
+}
+.entry-group-note {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+  color: var(--muted);
+}
+@media (max-width: 760px) {
+  .group-navigation {
+    display: flex;
+    flex-wrap: wrap;
+    max-height: 160px;
+    margin-top: 12px;
+    gap: 4px;
+  }
+  .group-nav-heading {
+    width: 100%;
+  }
+  .group-nav-button {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 100%;
+  }
+  .group-tools {
+    padding: 14px;
+  }
+}

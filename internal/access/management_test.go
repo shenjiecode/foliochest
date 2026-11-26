@@ -6,7 +6,7 @@ import (
 )
 
 func TestManagementInvalidatesPendingAndBufferedReads(t *testing.T) {
-	for _, operation := range []string{"rename", "delete"} {
+	for _, operation := range []string{"rename", "delete", "group"} {
 		for _, approved := range []bool{false, true} {
 			t.Run(operation+map[bool]string{false: "-pending", true: "-buffered"}[approved], func(t *testing.T) {
 				service, entry := setup(t)
@@ -25,6 +25,8 @@ func TestManagementInvalidatesPendingAndBufferedReads(t *testing.T) {
 				}
 				if operation == "rename" {
 					_, err = service.Vault.Rename(vault.RenameChange{Key: "demo", NewKey: "renamed", ExpectedRevision: entry.Revision})
+				} else if operation == "group" {
+					_, err = service.Vault.MoveGroup(vault.GroupMove{Group: "New group", Entries: []vault.GroupMember{{Key: "demo", ExpectedRevision: entry.Revision}}})
 				} else {
 					_, err = service.Vault.Delete(vault.DeleteChange{Key: "demo", ExpectedHeads: []string{entry.Revision}})
 				}

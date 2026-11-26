@@ -1,6 +1,6 @@
 import { API, esc, base64, download } from "./ui";
 export function restoreForm(directory: string): string {
-  return `<details class="restore-box"><summary>从加密备份恢复</summary><p class="small muted">恢复到新目录或空目录，不覆盖现有资料。完成后切换到恢复目录并重新解锁。</p><form id="restore-form"><label for="backup-file">Keyfolio 备份 ZIP（最多 66 MiB）</label><input id="backup-file" type="file" accept=".zip,application/zip" required><label for="restore-directory">恢复目录</label><input id="restore-directory" value="${esc(directory + "-restored")}" required spellcheck="false"><input type="text" name="username" autocomplete="username" value="Keyfolio backup" class="sr-only" tabindex="-1"><label for="backup-password">备份的主密码</label><input id="backup-password" type="password" autocomplete="current-password" required><button class="button secondary" type="submit">验证并恢复到新目录</button></form></details>`;
+  return `<details class="restore-box"><summary>从加密备份恢复</summary><p class="small muted">恢复到新目录或空目录，不覆盖现有资料。完成后切换到恢复目录并重新解锁。</p><form id="restore-form"><label for="backup-file">FolioChest / Keyfolio 备份 ZIP（最多 66 MiB）</label><input id="backup-file" type="file" accept=".zip,application/zip" required><label for="restore-directory">恢复目录</label><input id="restore-directory" value="${esc(directory + "-restored")}" required spellcheck="false"><input type="text" name="username" autocomplete="username" value="FolioChest backup" class="sr-only" tabindex="-1"><label for="backup-password">备份的主密码</label><input id="backup-password" type="password" autocomplete="current-password" required><button class="button secondary" type="submit">验证并恢复到新目录</button></form></details>`;
 }
 export function bindRestore(
   api: API,
@@ -47,7 +47,7 @@ export async function backup(csrf: string): Promise<void> {
   const response = await fetch("/api/backup", {
     method: "POST",
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json", "X-Keyfolio-CSRF": csrf },
+    headers: { "Content-Type": "application/json", "X-FolioChest-CSRF": csrf },
     body: "{}",
   });
   if (!response.ok) {
@@ -57,6 +57,6 @@ export async function backup(csrf: string): Promise<void> {
   const name =
     response.headers
       .get("Content-Disposition")
-      ?.match(/filename=([\w.-]+)/)?.[1] ?? "keyfolio-backup.zip";
+      ?.match(/filename=([\w.-]+)/)?.[1] ?? "foliochest-backup.zip";
   download(await response.blob(), name);
 }

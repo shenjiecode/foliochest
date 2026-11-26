@@ -112,7 +112,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.authenticateTrusted(r, sessionID, session)
 	if r.Method != "GET" {
-		if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Keyfolio-CSRF")), []byte(session.CSRF)) != 1 {
+		csrf := r.Header.Get("X-FolioChest-CSRF")
+		if csrf == "" {
+			csrf = r.Header.Get("X-Keyfolio-CSRF")
+		} // compatibility with existing clients
+		if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") || subtle.ConstantTimeCompare([]byte(csrf), []byte(session.CSRF)) != 1 {
 			apiError(w, errors.New("请求校验失败，请刷新网页"), 403)
 			return
 		}
@@ -135,7 +139,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.4.0-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.5.0-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
 	case "/api/vault/create", "/api/vault/unlock":
 		if !method(w, r, "POST") {
 			return
@@ -237,6 +241,9 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request, create bool) (s
 	return id, &copySession
 }
 func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
+	if s.serveGroups(w, r) {
+		return
+	}
 	if s.serveDevice(w, r) {
 		return
 	}
@@ -256,12 +263,16 @@ func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
 		}
 		var out []vault.Summary
 		var err error
+		var groups []string
+		if r.URL.Query().Has("group") {
+			groups = []string{r.URL.Query().Get("group")}
+		}
 		if r.URL.Query().Get("scope") == "trash" {
-			out, err = s.Vault.Trash(r.URL.Query().Get("q"))
+			out, err = s.Vault.Trash(r.URL.Query().Get("q"), groups...)
 		} else if r.URL.Query().Get("scope") == "body" {
-			out, err = s.Vault.Search(r.URL.Query().Get("q"))
+			out, err = s.Vault.Search(r.URL.Query().Get("q"), groups...)
 		} else {
-			out, err = s.Vault.List(r.URL.Query().Get("q"))
+			out, err = s.Vault.List(r.URL.Query().Get("q"), groups...)
 		}
 		if err != nil {
 			apiError(w, err, 409)
