@@ -219,6 +219,7 @@ func (s *Server) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		apiError(w, err, 400)
 		return
 	}
+	s.knownVault.Store(true)
 	s.Access.Sweep()
 	writeJSON(w, map[string]bool{"ok": true})
 }

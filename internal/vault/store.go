@@ -95,7 +95,22 @@ func (v *Vault) SelectDirectory(root string) error {
 func (v *Vault) Init(password string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	files, err := os.ReadDir(v.root)
+	return v.initAt(v.root, password)
+}
+
+// CreateAt keeps the active vault untouched until the new vault is created.
+func (v *Vault) CreateAt(root, password string) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.initAt(root, password)
+}
+
+func (v *Vault) initAt(root, password string) error {
+	if !filepath.IsAbs(root) {
+		return errors.New("请先选择资料库目录")
+	}
+	root = filepath.Clean(root)
+	files, err := os.ReadDir(root)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -111,15 +126,16 @@ func (v *Vault) Init(password string) error {
 		clear(key)
 		return err
 	}
-	if err = publish(v.root, "vault.json", data); err != nil {
+	if err = publish(root, "vault.json", data); err != nil {
 		clear(key)
 		return err
 	}
-	if err = os.MkdirAll(filepath.Join(v.root, "records"), 0700); err != nil {
+	if err = os.MkdirAll(filepath.Join(root, "records"), 0700); err != nil {
 		clear(key)
 		return err
 	}
 	v.lock()
+	v.root = root
 	v.cfg = c
 	v.configBytes = data
 	v.key = key
@@ -128,6 +144,9 @@ func (v *Vault) Init(password string) error {
 func (v *Vault) Unlock(password string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.root == "" {
+		return errors.New("请先选择资料库目录")
+	}
 	data, err := fsutil.ReadBounded(filepath.Join(v.root, "vault.json"), 16<<10)
 	if err != nil {
 		return errors.New("无法读取资料库配置，请确认目录与同步状态")
@@ -157,6 +176,9 @@ func (v *Vault) Unlock(password string) error {
 func (v *Vault) Status() Status {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.root == "" {
+		return Status{Issues: []string{}}
+	}
 	_, err := os.Stat(filepath.Join(v.root, "vault.json"))
 	issues := append([]string{}, v.issues...)
 	if v.scanErr != nil {

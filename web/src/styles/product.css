@@ -169,7 +169,34 @@ fieldset {
   border-radius: 6px;
   overflow-wrap: anywhere;
 }
+.onboarding-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+.directory-input {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.directory-input input {
+  min-width: 0;
+  flex: 1;
+}
+.directory-input button {
+  flex-shrink: 0;
+}
+.chosen-directory p {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
 @media (max-width: 680px) {
+  .directory-input {
+    flex-direction: column;
+  }
+  .directory-input input {
+    flex: auto;
+  }
   .setting-row {
     flex-wrap: wrap;
   }

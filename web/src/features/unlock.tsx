@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { ArrowRight, FolderClosed, LockKeyhole } from "lucide-react";
+import {
+  ArrowRight,
+  FolderClosed,
+  FolderOpen,
+  LockKeyhole,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Brand, Field } from "@/components/common";
@@ -17,6 +22,8 @@ export function Unlock({ state }: { state: AppState }) {
   const [password, setPassword] = useState(""),
     [flow, setFlow] = useState<VaultAction | null>(null),
     task = useTask();
+  const selected = !!state.vault.directory;
+  const exists = state.vault.exists;
   const blocked =
     state.system.enabled && (state.system.locked || state.system.sleeping);
   return (
@@ -27,80 +34,103 @@ export function Unlock({ state }: { state: AppState }) {
       <div className="lock-center scroll-region">
         <section className="unlock-card">
           <div className="vault-emblem">
-            <LockKeyhole />
+            {exists ? <LockKeyhole /> : <FolderOpen />}
           </div>
-          <h1>{state.vault.exists ? "解锁资料库" : "创建资料库"}</h1>
-          <div className="unlock-vault">
-            <FolderClosed />
-            <span title={state.vault.directory}>
-              {vaultName(state.vault.directory)}
-            </span>
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void task.run(async (ctx) => {
-                try {
-                  await ctx.request("/api/vault/unlock", { password });
-                  await ctx.refresh();
-                } finally {
-                  setPassword("");
-                }
-              });
-            }}
-          >
-            <fieldset disabled={task.busy || blocked}>
-              {state.vault.exists ? (
-                <>
-                  <Field id="unlock-password" label="主密码">
-                    <Input
-                      id="unlock-password"
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoFocus
-                    />
-                  </Field>
-                  <Button className="unlock-submit" type="submit">
-                    {task.busy ? "正在解锁…" : "解锁"}
-                    <ArrowRight />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="field-note">此目录尚无资料库。</p>
-                  <Button
-                    className="unlock-submit"
-                    type="button"
-                    onClick={() => setFlow("create")}
-                  >
-                    设置主密码
-                    <ArrowRight />
-                  </Button>
-                </>
-              )}
-            </fieldset>
-            <ErrorNotice message={task.error} />
-          </form>
-          {state.system.enabled && (!state.system.available || blocked) && (
-            <Notice>
-              {state.system.message || "系统会话仍锁定或休眠，请先解锁系统。"}
-            </Notice>
+          <h1>
+            {!selected
+              ? "尚未选择资料库"
+              : exists
+                ? "解锁资料库"
+                : "找不到资料库"}
+          </h1>
+          {selected && (
+            <div className="unlock-vault">
+              <FolderClosed />
+              <span title={state.vault.directory}>
+                {vaultName(state.vault.directory)}
+              </span>
+            </div>
           )}
+          {exists ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void task.run(async (ctx) => {
+                  try {
+                    await ctx.request("/api/vault/unlock", { password });
+                    await ctx.refresh();
+                  } finally {
+                    setPassword("");
+                  }
+                });
+              }}
+            >
+              <fieldset disabled={task.busy || blocked}>
+                <Field id="unlock-password" label="主密码">
+                  <Input
+                    id="unlock-password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoFocus
+                  />
+                </Field>
+                <Button className="unlock-submit" type="submit">
+                  {task.busy ? "正在解锁…" : "解锁"}
+                  <ArrowRight />
+                </Button>
+              </fieldset>
+              <ErrorNotice message={task.error} />
+            </form>
+          ) : (
+            <div className="onboarding-actions">
+              {selected && (
+                <p className="field-note">
+                  原位置没有可读取的资料库，请检查目录、权限或同步状态。不会在这里自动新建。
+                </p>
+              )}
+              <Button onClick={() => setFlow(selected ? "open" : "create")}>
+                {selected ? "打开其他资料库" : "创建资料库"}
+                <ArrowRight />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setFlow(selected ? "create" : "open")}
+              >
+                {selected ? "创建新资料库" : "打开资料库"}
+              </Button>
+            </div>
+          )}
+          {state.system.enabled &&
+            (blocked || (selected && !state.system.available)) && (
+              <Notice>
+                {state.system.message || "系统会话仍锁定或休眠，请先解锁系统。"}
+              </Notice>
+            )}
           {state.system.lock_reason && (
             <p className="field-note">{state.system.lock_reason}</p>
           )}
           {state.device_notice && <Notice>{state.device_notice}</Notice>}
           <div className="unlock-links">
-            <button onClick={() => setFlow("open")}>打开其他资料库</button>
-            {state.vault.exists && (
-              <button onClick={() => setFlow("create")}>创建资料库</button>
+            {exists && (
+              <>
+                <button disabled={task.busy} onClick={() => setFlow("open")}>
+                  打开其他资料库
+                </button>
+                <button disabled={task.busy} onClick={() => setFlow("create")}>
+                  创建资料库
+                </button>
+              </>
             )}
-            <button onClick={() => setFlow("restore")}>从备份恢复</button>
+            <button disabled={task.busy} onClick={() => setFlow("restore")}>
+              从备份恢复
+            </button>
           </div>
-          <p className="lock-caption path-value">{state.vault.directory}</p>
+          {selected && (
+            <p className="lock-caption path-value">{state.vault.directory}</p>
+          )}
         </section>
       </div>
       {flow && (
@@ -109,6 +139,7 @@ export function Unlock({ state }: { state: AppState }) {
     </main>
   );
 }
+
 export function VaultFlow({
   kind,
   state,
@@ -118,67 +149,88 @@ export function VaultFlow({
   state: AppState;
   onClose: () => void;
 }) {
-  const createHere = kind === "create" && !state.vault.exists;
-  const [directory, setDirectory] = useState(
-    kind === "restore"
-      ? state.vault.directory + "-restored"
-      : createHere
-        ? state.vault.directory
-        : "",
-  );
+  const [directory, setDirectory] = useState("");
+  const [stage, setStage] = useState<"directory" | "password">("directory");
   const [password, setPassword] = useState(""),
-    [repeat, setRepeat] = useState(""),
-    [file, setFile] = useState<File | null>(null),
-    task = useTask(),
+    [repeat, setRepeat] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const task = useTask(),
+    picker = useTask(),
     confirm = useConfirm();
+  const busy = task.busy || picker.busy;
+  const creating = kind === "create";
+  const passwordStep = creating && stage === "password";
   const title =
     kind === "restore"
       ? "从备份恢复"
-      : createHere
+      : passwordStep
         ? "设置主密码"
-        : kind === "create"
+        : creating
           ? "选择新资料库目录"
-          : "打开其他资料库";
-  const submit = () =>
-    task.run(
+          : "打开资料库";
+  const browse = () =>
+    picker.run(
+      async (ctx) => {
+        return ctx.request<{ cancelled: boolean; directory?: string }>(
+          "/api/directory/pick",
+          { directory },
+        );
+      },
+      (result) => {
+        if (!result.cancelled && result.directory) {
+          setDirectory(result.directory);
+          task.clearError();
+        }
+      },
+    );
+  const back = () => {
+    setPassword("");
+    setRepeat("");
+    setStage("directory");
+    task.clearError();
+  };
+  const submit = () => {
+    if (busy) return;
+    if (creating && !passwordStep) {
+      if (directory.trim()) {
+        setStage("password");
+        task.clearError();
+        picker.clearError();
+      }
+      return;
+    }
+    return task.run(
       async (ctx) => {
         try {
-          if (kind === "restore") {
-            if (!file) throw new Error("请选择备份 ZIP");
+          if (creating) validatePassword(password, repeat);
+          if (kind === "restore" && !file) throw new Error("请选择备份 ZIP");
+          if (kind === "restore" || state.authenticated) {
             if (
               !(await confirm({
-                title: "恢复并切换资料库？",
+                title:
+                  kind === "restore" ? "恢复并切换资料库？" : "切换资料库？",
                 description:
-                  "先校验备份，再恢复到新目录或空目录。不会覆盖现有资料，完成后需要重新解锁。",
+                  kind === "restore"
+                    ? "先校验备份，再恢复到新目录或空目录。不会覆盖现有资料，完成后需要重新解锁。"
+                    : "当前资料库将锁定，未完成的 AI 请求会失效。",
               }))
             )
-              return;
-            const archive = await readFile(file, 66 * 1024 * 1024, ctx.assert);
+              return false;
+          }
+          if (kind === "restore") {
+            const archive = await readFile(file!, 66 * 1024 * 1024, ctx.assert);
             await ctx.request("/api/vault/restore", {
               directory,
               password,
               archive,
             });
             await ctx.refresh("备份已恢复，请使用备份的主密码解锁。");
-          } else if (createHere) {
-            validatePassword(password, repeat);
-            await ctx.request("/api/vault/create", { password });
+          } else if (creating) {
+            await ctx.request("/api/vault/create", { directory, password });
             await ctx.refresh("资料库已创建。");
           } else {
-            if (
-              state.authenticated &&
-              !(await confirm({
-                title: "切换资料库？",
-                description: "当前资料库将锁定，未完成的 AI 请求会失效。",
-              }))
-            )
-              return;
             await ctx.request("/api/vault/select", { directory });
-            await ctx.refresh(
-              kind === "create"
-                ? "目录已选定，可设置主密码创建资料库。"
-                : "已切换资料库。",
-            );
+            await ctx.refresh("已打开资料库，请输入主密码解锁。");
           }
           return true;
         } finally {
@@ -190,24 +242,31 @@ export function VaultFlow({
         if (completed) onClose();
       },
     );
+  };
   return (
     <Modal
       title={title}
-      busy={task.busy}
+      busy={busy}
       onClose={onClose}
       footer={
         <>
-          <Button variant="outline" disabled={task.busy} onClick={onClose}>
-            取消
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={passwordStep ? back : onClose}
+          >
+            {passwordStep ? "上一步" : "取消"}
           </Button>
-          <Button type="submit" form="vault-flow" disabled={task.busy}>
+          <Button type="submit" form="vault-flow" disabled={busy}>
             {task.busy
               ? "正在处理…"
               : kind === "restore"
                 ? "验证并恢复"
-                : createHere
+                : passwordStep
                   ? "创建资料库"
-                  : "选择目录"}
+                  : creating
+                    ? "下一步"
+                    : "打开资料库"}
           </Button>
         </>
       }
@@ -219,7 +278,7 @@ export function VaultFlow({
           void submit();
         }}
       >
-        <fieldset disabled={task.busy} className="field-grid">
+        <fieldset disabled={busy} className="field-grid">
           {kind === "restore" && (
             <>
               <Notice>
@@ -236,32 +295,60 @@ export function VaultFlow({
               </Field>
             </>
           )}
-          <Field
-            id="vault-directory"
-            label="资料库目录"
-            note={
-              createHere
-                ? undefined
-                : "请输入绝对路径；本机配置目录不能放在资料库内。"
-            }
-          >
-            <Input
+          {passwordStep ? (
+            <div className="chosen-directory">
+              <span>保存位置</span>
+              <p className="path-value">{directory}</p>
+            </div>
+          ) : (
+            <Field
               id="vault-directory"
-              autoComplete="username"
-              className="path-value"
-              value={directory}
-              readOnly={createHere}
-              required
-              onChange={(e) => setDirectory(e.target.value)}
-              spellCheck={false}
-            />
-          </Field>
-          {(createHere || kind === "restore") && (
+              label="资料库目录"
+              note={
+                creating || kind === "restore"
+                  ? "选择新文件夹或空文件夹，也可以输入绝对路径。"
+                  : "选择包含 vault.json 的文件夹。"
+              }
+            >
+              <div className="directory-input">
+                <Input
+                  id="vault-directory"
+                  className="path-value"
+                  value={directory}
+                  placeholder="选择文件夹，或输入绝对路径"
+                  required
+                  onChange={(e) => {
+                    setDirectory(e.target.value);
+                    task.clearError();
+                    picker.clearError();
+                  }}
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void browse()}
+                >
+                  <FolderOpen />
+                  {picker.busy ? "等待选择…" : "选择文件夹"}
+                </Button>
+              </div>
+              {picker.busy && (
+                <p className="field-note" role="status">
+                  请在系统窗口中选择文件夹；取消后可继续编辑路径。
+                </p>
+              )}
+              <ErrorNotice message={picker.error} />
+            </Field>
+          )}
+          {(passwordStep || kind === "restore") && (
             <Field
               id="vault-password"
-              label={createHere ? "主密码" : "备份的主密码"}
+              label={creating ? "主密码" : "备份的主密码"}
               note={
-                createHere
+                creating
                   ? "至少 12 个字符。忘记密码且没有有效恢复材料时无法恢复。"
                   : undefined
               }
@@ -269,14 +356,15 @@ export function VaultFlow({
               <Input
                 id="vault-password"
                 type="password"
-                autoComplete={createHere ? "new-password" : "current-password"}
+                autoComplete={creating ? "new-password" : "current-password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoFocus={passwordStep}
               />
             </Field>
           )}
-          {createHere && (
+          {passwordStep && (
             <Field id="vault-repeat" label="再次输入主密码">
               <Input
                 id="vault-repeat"

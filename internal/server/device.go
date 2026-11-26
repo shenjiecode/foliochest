@@ -121,7 +121,7 @@ func (s *Server) TryAutoUnlock(ctx context.Context) {
 		return
 	}
 	d.attempted = true
-	if !d.record.Enabled {
+	if !d.record.Enabled || s.Vault.Status().Directory == "" {
 		return
 	}
 	sequence, err := s.beginUnlock(true)

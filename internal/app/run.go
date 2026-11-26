@@ -3,7 +3,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -42,18 +41,7 @@ func Run() {
 	if ip == nil || !ip.IsLoopback() {
 		log.Fatal("只允许显式回环 IP，例如 127.0.0.1:7463")
 	}
-	if *root == "" {
-		if b, e := os.ReadFile(filepath.Join(*device, "location.json")); e == nil {
-			var location struct{ Directory string }
-			if json.Unmarshal(b, &location) == nil {
-				*root = location.Directory
-			}
-		}
-		if *root == "" {
-			*root = filepath.Join(*device, "vault")
-		}
-	}
-	*root, err = filepath.Abs(*root)
+	*root, err = resolveVaultDirectory(*root, *device)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,7 +84,11 @@ func Run() {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	fmt.Printf("FolioChest / 资料匣 0.6.0-dev\n网页: %s\n资料库: %s\n当前为开发版本，请先使用合成测试数据。\n", baseURL, *root)
+	displayRoot := *root
+	if displayRoot == "" {
+		displayRoot = "尚未选择资料库"
+	}
+	fmt.Printf("FolioChest / 资料匣 0.6.1-dev\n网页: %s\n资料库: %s\n当前为开发版本，请先使用合成测试数据。\n", baseURL, displayRoot)
 	if err = srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

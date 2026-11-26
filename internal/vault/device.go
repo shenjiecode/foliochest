@@ -78,6 +78,9 @@ func (v *Vault) DeviceCredential(password string) (Binding, []byte, error) {
 func (v *Vault) UnlockDevice(raw []byte) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.root == "" {
+		return errors.New("请先选择资料库目录")
+	}
 	if len(v.key) != 0 {
 		return errors.New("资料库已解锁")
 	}

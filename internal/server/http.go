@@ -8,13 +8,12 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/access"
-	"github.com/shenjiecode/keyfolio/internal/fsutil"
 	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
@@ -26,20 +25,23 @@ type webSession struct {
 	Expires       time.Time
 }
 type Server struct {
-	Vault       *vault.Vault
-	Access      *access.Service
-	baseURL     string
-	host        string
-	deviceDir   string
-	clients     *clients
-	mu          sync.Mutex
-	sessions    map[string]*webSession
-	mcpHandlers map[string]http.Handler
-	static      fs.FS
-	system      *systemState
-	idle        *idleState
-	device      *deviceState
-	maintenance sync.Mutex
+	Vault           *vault.Vault
+	Access          *access.Service
+	baseURL         string
+	host            string
+	deviceDir       string
+	clients         *clients
+	mu              sync.Mutex
+	sessions        map[string]*webSession
+	mcpHandlers     map[string]http.Handler
+	static          fs.FS
+	system          *systemState
+	idle            *idleState
+	device          *deviceState
+	maintenance     sync.Mutex
+	picker          sync.Mutex
+	chooseDirectory platform.DirectoryPicker
+	knownVault      atomic.Bool
 }
 
 func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, error) {
@@ -47,8 +49,10 @@ func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, erro
 	if err != nil {
 		return nil, err
 	}
-	if err = platform.SeparateDirectories(v.Status().Directory, deviceDir); err != nil {
-		return nil, err
+	if directory := v.Status().Directory; directory != "" {
+		if err = platform.SeparateDirectories(directory, deviceDir); err != nil {
+			return nil, err
+		}
 	}
 	c, err := newClients(deviceDir)
 	if err != nil {
@@ -66,7 +70,9 @@ func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, erro
 	if err != nil {
 		return nil, err
 	}
-	return &Server{system: &systemState{heartbeat: time.Now(), now: time.Now}, device: device, idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}, nil
+	s := &Server{chooseDirectory: platform.PickDirectory, system: &systemState{heartbeat: time.Now(), now: time.Now}, device: device, idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}
+	s.knownVault.Store(v.Status().Exists || rememberedLocation(v.Status().Directory, deviceDir))
+	return s, nil
 }
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -121,6 +127,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if r.URL.Path == "/api/directory/pick" {
+		s.directoryPicker(w, r, sessionID, session)
+		return
+	}
 	if r.Method != "GET" && r.URL.Path != "/api/activity" && r.URL.Path != "/api/vault/lock" {
 		if !s.maintenance.TryLock() {
 			apiError(w, errors.New("另一个网页操作尚未完成，请稍后重试"), 409)
@@ -134,23 +144,36 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		status := s.Vault.Status()
+		if status.Exists {
+			s.knownVault.Store(true)
+		}
 		authenticated := session.Authenticated && session.Generation == s.Vault.Generation() && status.Unlocked
 		if !authenticated {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.6.0-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.6.1-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
 	case "/api/vault/create", "/api/vault/unlock":
 		if !method(w, r, "POST") {
 			return
 		}
 		var in struct {
-			Password string `json:"password"`
+			Password  string `json:"password"`
+			Directory string `json:"directory"`
 		}
 		if !decode(w, r, &in) {
 			return
 		}
-		err := s.unlockPassword(in.Password, r.URL.Path == "/api/vault/create")
+		var err error
+		if r.URL.Path == "/api/vault/create" {
+			if !s.Vault.Locked() && !s.authorized(session) {
+				apiError(w, vault.ErrLocked, 401)
+				return
+			}
+			err = s.createVault(in.Directory, in.Password, session)
+		} else {
+			err = s.unlockPassword(in.Password)
+		}
 		if err != nil {
 			apiError(w, err, 400)
 			return
@@ -172,37 +195,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.restoreBackup(w, r)
 	case "/api/vault/select":
-		if !method(w, r, "POST") {
-			return
-		}
-		if !s.Vault.Locked() && !s.authorized(session) {
-			apiError(w, errors.New("请先解锁当前网页会话"), 401)
-			return
-		}
-		var in struct {
-			Directory string `json:"directory"`
-		}
-		if !decode(w, r, &in) {
-			return
-		}
-		if !filepath.IsAbs(in.Directory) {
-			apiError(w, errors.New("请输入绝对目录路径"), 400)
-			return
-		}
-		if err := platform.SeparateDirectories(in.Directory, s.deviceDir); err != nil {
-			apiError(w, err, 400)
-			return
-		}
-		if err := s.Vault.SelectDirectory(in.Directory); err != nil {
-			apiError(w, err, 400)
-			return
-		}
-		data, _ := json.Marshal(map[string]string{"directory": filepath.Clean(in.Directory)})
-		if err := fsutil.WriteFile(filepath.Join(s.deviceDir, "location.json"), data); err != nil {
-			apiError(w, err, 500)
-			return
-		}
-		writeJSON(w, map[string]bool{"ok": true})
+		s.selectVault(w, r, session)
 	default:
 		if !s.authorized(session) {
 			apiError(w, vault.ErrLocked, 401)

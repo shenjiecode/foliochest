@@ -79,7 +79,7 @@ func TestSystemUnlockFenceAndUnknownFallback(t *testing.T) {
 		t.Fatal("unlock crossed an event")
 	}
 	b.app.SystemEvent(platform.SystemEvent{})
-	if err = b.app.unlockPassword("synthetic-test-password", false); err != nil {
+	if err = b.app.unlockPassword("synthetic-test-password"); err != nil {
 		t.Fatal("unknown state should permit explicit password with warning", err)
 	}
 	b.app.SystemEvent(platform.SystemEvent{})

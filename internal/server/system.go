@@ -113,17 +113,15 @@ func (s *Server) finishUnlock(sequence uint64) error {
 	s.system.reason = ""
 	return nil
 }
-func (s *Server) unlockPassword(password string, create bool) error {
+func (s *Server) unlockPassword(password string) error {
+	return s.unlockWith(func() error { return s.Vault.Unlock(password) })
+}
+func (s *Server) unlockWith(operation func() error) error {
 	sequence, err := s.beginUnlock(false)
 	if err != nil {
 		return err
 	}
-	if create {
-		err = s.Vault.Init(password)
-	} else {
-		err = s.Vault.Unlock(password)
-	}
-	if err != nil {
+	if err = operation(); err != nil {
 		return err
 	}
 	return s.finishUnlock(sequence)
