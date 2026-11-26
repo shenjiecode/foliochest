@@ -140,9 +140,11 @@
 
 每步后运行：`npm --prefix web ci && npm --prefix web run build && go test -race ./... && go vet ./... && npm --prefix web run check && npm --prefix web test`，以及 Windows amd64 / Linux arm64 交叉编译。
 
-## 9. 复核与实施结果
+## 9. 前次精简的复核与实施结果
 
-以上删行估算是原提案，不作为交付目标。本轮优先消除重复实现，保留公开 HTTP/MCP 接口、安全约束和测试；新增回归测试，不用删除测试换取净行数。
+**0.6.0-dev 后续决定：**按用户后续清理要求，正式界面已迁入 React 并连接真实 API；旧 DOM、独立预览、内存示例、`cmd/keyfolio` 和 `X-Keyfolio-CSRF` 入口均已删除，不保留前端归档副本。原 `ui.ts` 工具由 `web/src/lib/hooks.tsx`、`web/src/lib/files.ts` 及对应回归测试接替。以下“保留旧头/命令”和旧前端文件说明只记录前次结果，不再代表当前实现。资料格式、加密域、凭据/Cookie/启动项标识及 Linux 启动项显示名识别不变；当前界面以 DESIGN §14 为准。
+
+以上删行估算是原提案，不作为交付目标。前次精简优先消除重复实现，保留公开 HTTP/MCP 接口、安全约束和测试；新增回归测试，不用删除测试换取净行数。
 
 ### 已采纳
 
