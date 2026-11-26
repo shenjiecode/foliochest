@@ -1,0 +1,47 @@
+name: foliochest
+arch: ${PACKAGE_ARCH}
+platform: linux
+version: ${PACKAGE_VERSION}
+release: 1
+section: utils
+priority: optional
+maintainer: shenjiecode
+homepage: https://github.com/shenjiecode/foliochest
+license: MIT
+description: |
+  FolioChest - local encrypted vault with per-entry MCP permissions.
+  Launch from the application menu to open the local browser UI.
+  Installing does not start the service or enable login startup.
+depends:
+  - xdg-utils
+recommends:
+  - zenity
+contents:
+  - src: ${PACKAGE_STAGE}/foliochest
+    dst: /usr/bin/foliochest
+    expand: true
+    file_info:
+      mode: 0755
+  - src: packaging/linux/foliochest.desktop
+    dst: /usr/share/applications/foliochest.desktop
+    file_info:
+      mode: 0644
+  - src: packaging/assets/foliochest.png
+    dst: /usr/share/icons/hicolor/256x256/apps/foliochest.png
+    file_info:
+      mode: 0644
+  - src: LICENSE
+    dst: /usr/share/licenses/foliochest/LICENSE
+    type: license
+  - src: packaging/INSTALL.txt
+    dst: /usr/share/doc/foliochest/INSTALL.txt
+  - src: ${PACKAGE_STAGE}/SHADCN_NOTICE.md
+    dst: /usr/share/licenses/foliochest/SHADCN_NOTICE.md
+    expand: true
+  - src: ${PACKAGE_STAGE}/THIRD_PARTY_LICENSES
+    dst: /usr/share/licenses/foliochest/third-party
+    type: tree
+    expand: true
+scripts:
+  postinstall: packaging/linux/refresh-menu.sh
+  postremove: packaging/linux/refresh-menu.sh

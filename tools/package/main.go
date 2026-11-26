@@ -184,6 +184,8 @@ func archive(dir, output string, windows bool) error {
 }
 func run() error {
 	version := flag.String("version", "0.6.1-dev", "package version")
+	withInstallers := flag.Bool("installers", false, "also build NSIS Windows installers and nFPM DEB/RPM packages")
+	windowsX86 := flag.Bool("windows-x86", false, "include experimental Windows 32-bit packages")
 	flag.Parse()
 	if !regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._-]*$`).MatchString(*version) {
 		return fmt.Errorf("invalid version")
@@ -204,7 +206,11 @@ func run() error {
 		return err
 	}
 	checksum := strings.Builder{}
-	for _, target := range []struct{ os, arch string }{{"windows", "amd64"}, {"linux", "amd64"}, {"linux", "arm64"}} {
+	targets := []struct{ os, arch string }{{"windows", "amd64"}, {"linux", "amd64"}, {"linux", "arm64"}}
+	if *windowsX86 {
+		targets = append(targets, struct{ os, arch string }{"windows", "386"})
+	}
+	for _, target := range targets {
 		name := "foliochest-" + *version + "-" + target.os + "-" + target.arch
 		dir := filepath.Join(work, name)
 		if err = os.MkdirAll(dir, 0755); err != nil {
@@ -212,7 +218,7 @@ func run() error {
 		}
 		binary := "foliochest"
 		ldflags := "-s -w"
-		resource := "cmd/foliochest/resource_windows_amd64.syso"
+		resource := "cmd/foliochest/resource_windows_" + target.arch + ".syso"
 		if target.os == "windows" {
 			if _, e := os.Lstat(resource); e == nil {
 				return fmt.Errorf("refusing to overwrite %s", resource)
@@ -234,7 +240,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		for _, pair := range [][2]string{{"LICENSE", "LICENSE"}, {"packaging/README.txt", "README.txt"}, {"web/src/components/ui/NOTICE.md", "SHADCN_NOTICE.md"}, {"packaging/assets/foliochest.png", "foliochest.png"}} {
+		for _, pair := range [][2]string{{"LICENSE", "LICENSE"}, {"packaging/README.txt", "README.txt"}, {"packaging/INSTALL.txt", "INSTALL.txt"}, {"web/src/components/ui/NOTICE.md", "SHADCN_NOTICE.md"}, {"packaging/assets/foliochest.png", "foliochest.png"}} {
 			if err = copyFile(pair[0], filepath.Join(dir, pair[1]), 0644); err != nil {
 				return err
 			}
@@ -264,18 +270,28 @@ func run() error {
 		if err = archive(dir, output, target.os == "windows"); err != nil {
 			return err
 		}
-		f, e := os.Open(output)
-		if e != nil {
-			return e
+		outputs := []string{output}
+		if *withInstallers {
+			additional, e := buildInstallers(dir, name, target.os, target.arch, *version)
+			if e != nil {
+				return e
+			}
+			outputs = append(outputs, additional...)
 		}
-		hash := sha256.New()
-		_, e = io.Copy(hash, f)
-		f.Close()
-		if e != nil {
-			return e
+		for _, output := range outputs {
+			f, e := os.Open(output)
+			if e != nil {
+				return e
+			}
+			hash := sha256.New()
+			_, e = io.Copy(hash, f)
+			f.Close()
+			if e != nil {
+				return e
+			}
+			fmt.Fprintf(&checksum, "%s  %s\n", hex.EncodeToString(hash.Sum(nil)), filepath.Base(output))
+			fmt.Println("Packaged:", output)
 		}
-		fmt.Fprintf(&checksum, "%s  %s\n", hex.EncodeToString(hash.Sum(nil)), filepath.Base(output))
-		fmt.Println("Packaged:", output)
 	}
 	return os.WriteFile(filepath.Join("dist", "SHA256SUMS-"+*version+".txt"), []byte(checksum.String()), 0644)
 }

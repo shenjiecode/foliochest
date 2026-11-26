@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=资料匣
+Name[en]=FolioChest
+GenericName=本地加密资料库
+Comment=FolioChest
+Exec=/usr/bin/foliochest
+Icon=/usr/share/icons/hicolor/256x256/apps/foliochest.png
+Terminal=false
+Categories=Utility;
+StartupNotify=false

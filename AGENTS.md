@@ -37,5 +37,5 @@ FolioChest / 资料匣（原名 Keyfolio）当前为 `0.6.1-dev` 原型。实际
 - 品牌改名不能全局替换加密 AAD/HMAC 域、系统凭据命名空间、默认设备目录、Cookie 或旧启动项标识。唯一入口为 `cmd/foliochest`，已按用户要求移除旧命令与旧 CSRF 头别名；不自动搬动目录或改动 harness 配置。
 - 分组管理沿用单批 20 条/8 MiB 上限，必须校验旧版本和全组成员，不能静默拆批。包含回收站，不处理未解决的冲突/缺失；空组不独立保存。
 - 网页会话变更清除敏感界面；列表、搜索、条目及历史加载生命周期独立，文件读取后复查。Radix 样式使用每页随机 nonce，不放宽为 unsafe-inline。测试覆盖真实组件与请求客户端，不能用删测试替代迁移。
-- `make package` 生成 Windows amd64 与 Linux amd64/arm64 免安装包；用户已要求后续增加 Windows/Linux 安装包，目前未实现。手动启动自动打开浏览器，开发隔离服务应传 `--background`；不得为了测试自动打开用户浏览器、登记快捷方式或自启动。
+- `make package` 生成 Windows amd64 与 Linux amd64/arm64 免安装包；`make installers` 调用 nFPM/NSIS 生成 Windows x64/实验性 x86 安装器与 Linux amd64/arm64 DEB/RPM，尚未真机验收。不得在开发者系统实际安装生成包或运行登记/卸载脚本做测试。手动启动自动打开浏览器，开发隔离服务应传 `--background`；不得为了测试自动打开用户浏览器、登记快捷方式或自启动。
 - `.local/`、`bin/`、`dist/`、`web/dist/`、`web/node_modules/` 和生成的 Windows `.syso` 是本地生成内容，不提交。

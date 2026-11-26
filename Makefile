@@ -1,4 +1,4 @@
-.PHONY: build web test check package
+.PHONY: build web test check package installers
 
 web:
 	npm --prefix web ci --no-audit --no-fund
@@ -9,6 +9,9 @@ build: web
 
 package: web
 	go run ./tools/package
+
+installers: web
+	go run ./tools/package -installers -windows-x86
 
 test: web
 	npm --prefix web test
