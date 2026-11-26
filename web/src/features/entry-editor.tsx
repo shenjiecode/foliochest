@@ -27,6 +27,8 @@ import {
   stateLabels,
 } from "@/lib/types";
 import { renderMarkdown } from "@/markdown";
+import { BodyEditor } from "@/components/body-editor";
+import { ChoiceField, formatChoices } from "@/components/choice-field";
 import { Attachments, Properties } from "./document-fields";
 
 export function EntryEditor({
@@ -310,12 +312,11 @@ export function EntryEditor({
             <section className="entry-body" aria-label="正文">
               <h3 className="document-section-heading">正文</h3>
               {editing ? (
-                <textarea
-                  className="source-editor"
-                  aria-label="正文"
+                <BodyEditor
                   value={draft.value}
-                  onChange={(e) => update({ value: e.target.value })}
-                  spellCheck={false}
+                  format={draft.format}
+                  disabled={task.busy || loading}
+                  onChange={(value) => update({ value })}
                 />
               ) : draft.format === "markdown" ? (
                 <article
@@ -329,6 +330,16 @@ export function EntryEditor({
                   {draft.value}
                 </pre>
               )}
+              <div className="body-format">
+                <ChoiceField
+                  id="entry-format"
+                  label="正文格式"
+                  value={draft.format}
+                  options={formatChoices}
+                  disabled={!editing || task.busy || loading}
+                  onChange={(format) => update({ format })}
+                />
+              </div>
             </section>
             <Attachments
               files={draft.attachments || []}

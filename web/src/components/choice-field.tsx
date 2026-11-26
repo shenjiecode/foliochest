@@ -21,7 +21,7 @@ export function ChoiceField<T extends string>({
       <legend>{label}</legend>
       <div className="choice-options">
         {options.map((option) => (
-          <label className="choice-card" key={option.value}>
+          <label className="choice-option" key={option.value}>
             <input
               type="radio"
               name={name}

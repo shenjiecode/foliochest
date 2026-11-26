@@ -51,10 +51,7 @@ fieldset {
   min-width: 0;
 }
 .property-key,
-.property-group {
-  grid-column: span 3;
-}
-.property-format,
+.property-group,
 .property-policy {
   grid-column: span 6;
 }
@@ -62,7 +59,12 @@ fieldset {
   grid-column: 1 / -1;
 }
 .property-fields .field {
-  gap: 6px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.property-fields .field > .field-note {
+  grid-column: 2;
 }
 .property-description-input {
   padding: 6px 10px;
@@ -73,50 +75,118 @@ fieldset {
 }
 .choice-field {
   min-width: 0;
+  display: flow-root;
 }
 .choice-field legend {
-  font-size: 14px;
+  float: left;
+  font-size: 13px;
   font-weight: 500;
-  margin-bottom: 6px;
+  margin: 0 14px 0 0;
+  line-height: 36px;
 }
 .choice-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px 16px;
 }
-.choice-card {
+.choice-option {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
   min-height: 36px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--background);
-  font-size: 12px;
+  padding: 4px 0;
+  border-radius: 3px;
+  font-size: 13px;
   cursor: pointer;
 }
-.choice-card input {
+.choice-option input {
   width: 13px;
   height: 13px;
   accent-color: var(--primary);
   flex-shrink: 0;
 }
-.choice-card:has(input:checked) {
-  border-color: var(--primary);
-  background: var(--accent);
+.choice-option:has(input:checked) {
   color: var(--primary);
 }
-.choice-card:has(input:focus-visible) {
+.choice-option:has(input:focus-visible) {
   outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
-.choice-card:has(input:disabled) {
+.choice-option:has(input:disabled) {
   cursor: default;
 }
-.choice-card:has(input:disabled:not(:checked)) {
+.choice-option:has(input:disabled:not(:checked)) {
   color: var(--muted-foreground);
+}
+.body-format {
+  margin-top: 10px;
+}
+.body-editor {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+}
+.body-editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.body-editor-toolbar [data-slot="button"] {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.body-editor-toolbar .field-note {
+  padding: 0 8px;
+}
+.code-editor-host .cm-editor {
+  height: clamp(260px, 38dvh, 480px);
+  font-size: 14px;
+  background: var(--background);
+  color: var(--foreground);
+}
+.code-editor-host .cm-editor.cm-focused {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.code-editor-host .cm-scroller {
+  overflow: auto;
+  font-family: var(--font-code);
+  line-height: 1.8;
+}
+.code-editor-host .cm-content {
+  padding: 12px 0;
+}
+.code-editor-host .cm-gutters {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+.body-editor-preview {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.body-editor-preview h4 {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-bottom: 12px;
+}
+.body-editor-preview .article {
+  padding: 0;
+  max-width: none;
+}
+.body-editor > .form-error {
+  padding: 8px 12px;
+}
+@media (pointer: coarse) {
+  .choice-option,
+  .body-editor-toolbar [data-slot="button"] {
+    min-height: 44px;
+  }
 }
 .entry-body {
   margin-top: 24px;
@@ -124,7 +194,7 @@ fieldset {
 .document-section-heading {
   margin-bottom: 12px;
 }
-.entry-body .source-editor {
+.body-source-editor {
   height: clamp(260px, 38dvh, 480px);
   min-height: 180px;
   padding: 16px;
@@ -149,20 +219,18 @@ fieldset {
 .entry-heading .editor-actions {
   flex-shrink: 0;
 }
-@container (max-width: 560px) {
-  .property-key,
-  .property-group {
-    grid-column: span 6;
-  }
-  .property-format {
+@container (max-width: 700px) {
+  .property-policy {
     grid-column: 1 / -1;
   }
 }
 @container (max-width: 360px) {
   .property-key,
-  .property-group,
-  .property-policy {
+  .property-group {
     grid-column: 1 / -1;
+  }
+  .property-policy .choice-field legend {
+    float: none;
   }
 }
 .entry-panel > .form-error {

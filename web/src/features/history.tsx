@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common";
+import { BodyEditor } from "@/components/body-editor";
 import { ChoiceField, formatChoices } from "@/components/choice-field";
 import {
   ErrorNotice,
@@ -390,6 +391,19 @@ function RestoreEditor({
             onChange={(e) => setDescription(e.target.value)}
           />
         </Field>
+        <Field id="restore-value" label="历史正文（可编辑后合并）">
+          <BodyEditor
+            id="restore-value"
+            label="历史正文（可编辑后合并）"
+            value={value}
+            format={bodyFormat}
+            disabled={task.busy || !!reason}
+            onChange={(value) => {
+              setValue(value);
+              onDirty(true);
+            }}
+          />
+        </Field>
         <ChoiceField
           id="restore-format"
           label="正文格式"
@@ -397,16 +411,6 @@ function RestoreEditor({
           options={formatChoices}
           onChange={setBodyFormat}
         />
-        <Field id="restore-value" label="历史正文（可编辑后合并）">
-          <Textarea
-            id="restore-value"
-            className="history-source"
-            rows={10}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            spellCheck={false}
-          />
-        </Field>
         <Button type="submit" disabled={task.busy || !!reason}>
           {task.busy
             ? "正在保存…"

@@ -2,7 +2,7 @@ import { Download, File, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, IconButton } from "@/components/common";
-import { ChoiceField, formatChoices } from "@/components/choice-field";
+import { ChoiceField } from "@/components/choice-field";
 import { GroupField } from "@/components/forms";
 import {
   type Entry,
@@ -54,16 +54,6 @@ export function Properties({
             format={format}
             disabled={!editable}
             compact
-          />
-        </div>
-        <div className="property-format">
-          <ChoiceField
-            id="entry-format"
-            label="正文格式"
-            value={entry.format}
-            options={formatChoices}
-            disabled={!editable}
-            onChange={(format) => onChange({ format })}
           />
         </div>
         <div className="property-description">
