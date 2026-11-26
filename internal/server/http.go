@@ -25,6 +25,9 @@ type webSession struct {
 	Expires       time.Time
 }
 type Server struct {
+	// Set by the application before serving; never supplied by HTTP clients.
+	LauncherToken   string
+	Shutdown        func()
 	Vault           *vault.Vault
 	Access          *access.Service
 	baseURL         string
@@ -91,6 +94,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-site request denied", http.StatusForbidden)
 		return
 	}
+	if r.URL.Path == "/api/launcher" {
+		if r.Method != "GET" || s.LauncherToken == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-FolioChest-Launcher")), []byte(s.LauncherToken)) != 1 {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	s.SystemHeartbeat()
 	s.ExpireIdle()
 	if r.URL.Path == "/mcp" {
@@ -153,6 +164,30 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Issues = []string{}
 		}
 		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": "0.6.1-dev", "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
+	case "/api/app/quit":
+		if !method(w, r, "POST") {
+			return
+		}
+		if !s.Vault.Locked() && !s.authorized(session) {
+			apiError(w, vault.ErrLocked, 401)
+			return
+		}
+		var input struct {
+			Confirmed bool `json:"confirmed"`
+		}
+		if !decode(w, r, &input) {
+			return
+		}
+		if !input.Confirmed || s.Shutdown == nil {
+			apiError(w, errors.New("无法退出：需要明确确认且程序支持退出"), 400)
+			return
+		}
+		s.Access.Lock()
+		writeJSON(w, map[string]bool{"ok": true})
+		if flush, ok := w.(http.Flusher); ok {
+			flush.Flush()
+		}
+		s.Shutdown()
 	case "/api/vault/create", "/api/vault/unlock":
 		if !method(w, r, "POST") {
 			return

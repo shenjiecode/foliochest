@@ -77,7 +77,7 @@ func (s *NativeStartup) args() ([]string, error) {
 			return nil, errors.New("请先构建并运行固定位置的程序，再开启自动启动；不能注册 go run 临时程序")
 		}
 	}
-	return []string{s.Executable, "--device-dir", s.DeviceDir, "--listen", s.Address}, nil
+	return []string{s.Executable, "--background", "--device-dir", s.DeviceDir, "--listen", s.Address}, nil
 }
 func Canonical(path string) (string, error) {
 	absolute, err := filepath.Abs(path)

@@ -10,6 +10,7 @@ import {
 import { Brand, EmptyState, IconButton } from "@/components/common";
 import { ConfirmProvider, ErrorNotice, useConfirm } from "@/components/forms";
 import { SessionClient } from "@/lib/client";
+import { ExitContext, useQuit } from "@/components/exit-app";
 import {
   ClientContext,
   useClient,
@@ -37,9 +38,24 @@ import { Settings } from "@/features/settings";
 import { ApprovalNotice, Approvals } from "@/features/approvals";
 
 export function App({ client }: { client: SessionClient }) {
+  const [exited, setExited] = useState(false);
   return (
     <ClientContext value={client}>
-      <SessionGate />
+      <ExitContext value={() => setExited(true)}>
+        {exited ? (
+          <main className="lock-screen">
+            <header className="lock-topbar">
+              <Brand />
+            </header>
+            <div className="lock-center">
+              <h1>资料匣已退出</h1>
+              <p>可以关闭此页面。下次点击应用图标重新启动。</p>
+            </div>
+          </main>
+        ) : (
+          <SessionGate />
+        )}
+      </ExitContext>
     </ClientContext>
   );
 }
@@ -143,7 +159,8 @@ function Workspace({
 }) {
   const client = useClient(),
     confirm = useConfirm(),
-    task = useTask();
+    task = useTask(),
+    exit = useQuit();
   const [view, setView] = useState<View>(() =>
       location.hash === "#approvals" ? "approvals" : "entries",
     ),
@@ -245,6 +262,7 @@ function Workspace({
       view={view}
       onGo={go}
       onLock={lock}
+      onQuit={() => void guard(() => void exit.quit())}
       onOpen={(action) => open({ kind: "vault", action })}
     >
       {(view === "entries" || view === "trash") && (
@@ -329,10 +347,12 @@ function Workspace({
               onOpen={() => go("approvals")}
             />
           </header>
-          {(connectionError || catalog.error || task.error) && (
+          {(connectionError || catalog.error || task.error || exit.error) && (
             <div className="workspace-warning">
               <ErrorNotice
-                message={connectionError || catalog.error || task.error}
+                message={
+                  connectionError || catalog.error || task.error || exit.error
+                }
               />
             </div>
           )}

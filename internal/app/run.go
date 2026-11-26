@@ -3,9 +3,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -14,53 +14,93 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/server"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 	"github.com/shenjiecode/keyfolio/web"
 )
 
 func Run() {
+	if err := run(); err != nil {
+		platform.ShowLaunchError(err.Error())
+		os.Exit(1)
+	}
+}
+func run() error {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	// Keep the legacy default path so upgrading does not orphan device state.
 	device := flag.String("device-dir", filepath.Join(configDir, "keyfolio"), "本机配置目录，不参与同步")
 	root := flag.String("vault", "", "资料库目录；也可以在网页选择")
 	listen := flag.String("listen", "127.0.0.1:7463", "仅限回环地址")
+	background := flag.Bool("background", false, "只启动后台服务，不打开浏览器（登录自启动使用）")
 	flag.Parse()
-	*device, err = filepath.Abs(*device)
+	*device, err = platform.Canonical(*device)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	host, _, err := net.SplitHostPort(*listen)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	ip := net.ParseIP(host)
 	if ip == nil || !ip.IsLoopback() {
-		log.Fatal("只允许显式回环 IP，例如 127.0.0.1:7463")
+		return errors.New("只允许显式回环 IP，例如 127.0.0.1:7463")
 	}
-	*root, err = resolveVaultDirectory(*root, *device)
+	selectedRoot, err := resolveVaultDirectory(*root, *device)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	if selectedRoot != "" {
+		if err = platform.SeparateDirectories(selectedRoot, *device); err != nil {
+			return err
+		}
+	}
+	owner, locked, err := acquireInstance(*device)
+	if err != nil {
+		return err
+	}
+	if !locked {
+		address, err := existingInstance(*device)
+		if err != nil {
+			return err
+		}
+		if *root != "" {
+			return errors.New("这个本机配置已有资料匣进程；请从已有网页切换资料库，不能通过重复启动切库")
+		}
+		if !*background {
+			return platform.OpenBrowser(address)
+		}
+		return nil
+	}
+	defer owner.close()
+	*root = selectedRoot
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("无法监听 %s；地址可能被其他程序或旧版本占用，请先关闭旧进程或指定其他 --listen 地址：%w", *listen, err)
 	}
+	defer listener.Close()
 	baseURL := "http://" + listener.Addr().String()
 	v := vault.New(*root)
 	app, err := server.New(v, *device, baseURL, web.Files())
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	srv := &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 << 10}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if err = owner.publish(baseURL); err != nil {
+		return err
+	}
+	app.LauncherToken = owner.info.Token
+	app.Shutdown = stop
+	srv := &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 << 10}
 	app.StartSystemMonitor(ctx)
 	app.TryAutoUnlock(ctx)
+	workerDone := make(chan struct{})
 	go func() {
+		defer close(workerDone)
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -77,19 +117,43 @@ func Run() {
 			}
 		}
 	}()
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		app.Access.Lock()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = srv.Shutdown(shutdown)
+		if srv.Shutdown(shutdown) != nil {
+			_ = srv.Close()
+		}
 	}()
+	if !*background {
+		go func() {
+			// Confirm our authenticated readiness endpoint, not merely an occupied port.
+			address, e := existingInstance(*device)
+			if ctx.Err() != nil {
+				return
+			}
+			if e == nil {
+				e = platform.OpenBrowser(address)
+			}
+			if e != nil {
+				platform.ShowLaunchError("资料匣已启动，但无法自动打开浏览器。请手动访问 " + baseURL)
+			}
+		}()
+	}
 	displayRoot := *root
 	if displayRoot == "" {
 		displayRoot = "尚未选择资料库"
 	}
-	fmt.Printf("FolioChest / 资料匣 0.6.1-dev\n网页: %s\n资料库: %s\n当前为开发版本，请先使用合成测试数据。\n", baseURL, displayRoot)
-	if err = srv.Serve(listener); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	fmt.Printf("资料匣 / FolioChest 0.6.1-dev\n网页: %s\n资料库: %s\n关闭网页不会退出后台；请使用网页中的退出按钮。\n", baseURL, displayRoot)
+	err = srv.Serve(listener)
+	stop()
+	<-shutdownDone
+	<-workerDone
+	if err != nil && err != http.ErrServerClosed {
+		return err
 	}
+	return nil
 }

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Brand, Field } from "@/components/common";
 import { ErrorNotice, Modal, Notice, useConfirm } from "@/components/forms";
 import { useTask } from "@/lib/hooks";
+import { useQuit } from "@/components/exit-app";
 import { readFile } from "@/lib/files";
 import { type AppState, type VaultAction, vaultName } from "@/lib/types";
 
@@ -21,7 +22,8 @@ export function validatePassword(value: string, repeat: string) {
 export function Unlock({ state }: { state: AppState }) {
   const [password, setPassword] = useState(""),
     [flow, setFlow] = useState<VaultAction | null>(null),
-    task = useTask();
+    task = useTask(),
+    exit = useQuit();
   const selected = !!state.vault.directory;
   const exists = state.vault.exists;
   const blocked =
@@ -30,7 +32,15 @@ export function Unlock({ state }: { state: AppState }) {
     <main className="lock-screen">
       <header className="lock-topbar">
         <Brand />
+        <Button
+          variant="ghost"
+          disabled={task.busy || exit.busy}
+          onClick={() => void exit.quit()}
+        >
+          退出资料匣
+        </Button>
       </header>
+      <ErrorNotice message={exit.error} />
       <div className="lock-center scroll-region">
         <section className="unlock-card">
           <div className="vault-emblem">

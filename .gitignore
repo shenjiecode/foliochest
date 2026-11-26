@@ -19,6 +19,7 @@
 *.tmp
 
 # Build outputs and frontend dependencies
+/cmd/foliochest/resource_windows_*.syso
 /bin/
 /dist/
 /node_modules/

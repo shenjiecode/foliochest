@@ -1,4 +1,4 @@
-.PHONY: build web test check
+.PHONY: build web test check package
 
 web:
 	npm --prefix web ci --no-audit --no-fund
@@ -6,6 +6,9 @@ web:
 
 build: web
 	CGO_ENABLED=0 go build -trimpath -o bin/foliochest ./cmd/foliochest
+
+package: web
+	go run ./tools/package
 
 test: web
 	npm --prefix web test

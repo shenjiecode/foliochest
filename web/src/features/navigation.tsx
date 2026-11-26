@@ -7,6 +7,7 @@ import {
   Layers3,
   LockKeyhole,
   Plus,
+  Power,
   Settings2,
   Trash2,
 } from "lucide-react";
@@ -35,6 +36,7 @@ export function Sidebar({
   children,
   onGo,
   onLock,
+  onQuit,
   onOpen,
 }: {
   directory: string;
@@ -44,6 +46,7 @@ export function Sidebar({
   children?: ReactNode;
   onGo: (view: View) => void;
   onLock: () => void;
+  onQuit: () => void;
   onOpen: (kind: VaultAction) => void;
 }) {
   return (
@@ -106,6 +109,10 @@ export function Sidebar({
         <button className="nav-item" onClick={onLock}>
           <LockKeyhole />
           <span>锁定资料库</span>
+        </button>
+        <button className="nav-item" onClick={onQuit}>
+          <Power />
+          <span>退出资料匣</span>
         </button>
       </nav>
     </aside>
