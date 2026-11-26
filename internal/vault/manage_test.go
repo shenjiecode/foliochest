@@ -40,13 +40,13 @@ func TestDeleteRestoresIdentityAndCurrentPolicy(t *testing.T) {
 	if _, err = v.Commit([]Change{{Key: "entry", Description: ptr("reuse"), Value: ptr("new")}}, true, true); !errors.Is(err, ErrDeleted) {
 		t.Fatal("deleted key reused", err)
 	}
-	for _, list := range []func(string, ...string) ([]Summary, error){v.List, v.Search} {
-		rows, err := list("")
+	for _, scope := range []ListScope{ListMetadata, ListBody} {
+		rows, err := v.List(ListOptions{Scope: scope})
 		if err != nil || len(rows) != 0 {
 			t.Fatal("deletion exposed", rows, err)
 		}
 	}
-	trash, err := v.Trash("")
+	trash, err := v.List(ListOptions{Scope: ListTrash})
 	if err != nil || len(trash) != 1 || trash[0].EntryID != initial.EntryID {
 		t.Fatal(trash, err)
 	}
@@ -80,7 +80,7 @@ func TestDeleteRestoresIdentityAndCurrentPolicy(t *testing.T) {
 	if err != nil || current.EntryID != initial.EntryID || current.Value != initial.Value || len(current.Attachments) != 1 {
 		t.Fatal("restore changed identity/content", err)
 	}
-	if rows, _ := v.Trash(""); len(rows) != 0 {
+	if rows, _ := v.List(ListOptions{Scope: ListTrash}); len(rows) != 0 {
 		t.Fatal(rows)
 	}
 }
@@ -149,7 +149,7 @@ func TestConcurrentRenameEditAndDelete(t *testing.T) {
 			if err != nil || history.State != "conflict" || len(history.Heads) != 2 {
 				t.Fatal(history, err)
 			}
-			rows, err := left.List("")
+			rows, err := left.List(ListOptions{})
 			if err != nil || len(rows) != 2 {
 				t.Fatal(rows, err)
 			}
@@ -169,7 +169,7 @@ func TestConcurrentRenameEditAndDelete(t *testing.T) {
 				if err != nil || !result.Deleted {
 					t.Fatal(result, err)
 				}
-				if rows, _ := left.List(""); len(rows) != 0 {
+				if rows, _ := left.List(ListOptions{}); len(rows) != 0 {
 					t.Fatal(rows)
 				}
 			} else {
@@ -180,7 +180,7 @@ func TestConcurrentRenameEditAndDelete(t *testing.T) {
 				if operation == "edit" && result.ReadPolicy != Deny {
 					t.Fatal("merge relaxed permissions")
 				}
-				rows, _ = left.List("")
+				rows, _ = left.List(ListOptions{})
 				if len(rows) != 1 || rows[0].Key != "resolved" {
 					t.Fatal("candidate names remained aliases", rows)
 				}

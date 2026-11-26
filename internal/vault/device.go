@@ -10,6 +10,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 )
 
 type Binding struct {
@@ -35,19 +37,13 @@ func deviceProof(key []byte, b Binding) []byte {
 func (v *Vault) Binding() (Binding, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return Binding{}, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return Binding{}, err
 	}
 	return binding(v.cfg, v.configBytes), nil
 }
 func (v *Vault) verifyPassword(password string) error {
-	if len(v.key) == 0 {
-		return ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return err
 	}
 	key, err := v.cfg.unlock(password)
@@ -66,7 +62,7 @@ func (v *Vault) VerifyPassword(password string) error {
 	return v.verifyPassword(password)
 }
 
-// DeviceCredential must ONLY be persisted through an OS credential provider.
+// DeviceCredential must only be persisted through an OS credential provider.
 func (v *Vault) DeviceCredential(password string) (Binding, []byte, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -96,7 +92,7 @@ func (v *Vault) UnlockDevice(raw []byte) error {
 	if credential.Version != 1 || len(credential.Key) != 32 || !hmac.Equal(credential.Proof, deviceProof(credential.Key, credential.Binding)) {
 		return errors.New("设备凭据校验失败")
 	}
-	data, err := readBounded(filepath.Join(v.root, "vault.json"), 16<<10)
+	data, err := fsutil.ReadBounded(filepath.Join(v.root, "vault.json"), 16<<10)
 	if err != nil {
 		return err
 	}
@@ -118,8 +114,7 @@ func (v *Vault) UnlockDevice(raw []byte) error {
 	return nil
 }
 
-// ChangePassword rewraps the SAME data key. Old backups and copied data keys
-// remain usable. It does not claim to revoke an offline device cryptographically.
+// ChangePassword rewraps the same data key.
 func (v *Vault) ChangePassword(current, next string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -139,8 +134,7 @@ func (v *Vault) ChangePassword(current, next string) error {
 	return v.replaceConfig(c)
 }
 
-// UpgradeFormat is explicitly confirmed by a human after backing up and updating
-// every device. It does not rewrite old records or silently migrate on unlock.
+// UpgradeFormat rewraps the same key with FormatVersion; records are not rewritten.
 func (v *Vault) UpgradeFormat(password string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -165,26 +159,12 @@ func (v *Vault) replaceConfig(c config) error {
 		return err
 	}
 	path := filepath.Join(v.root, "vault.json")
-	f, err := os.CreateTemp(v.root, ".pending-config-*")
+	tmp, err := fsutil.WriteTemp(v.root, ".pending-config-*", raw)
 	if err != nil {
 		return err
 	}
-	tmp := f.Name()
 	defer os.Remove(tmp)
-	if err = f.Chmod(0600); err == nil {
-		_, err = f.Write(raw)
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	ce := f.Close()
-	if err == nil {
-		err = ce
-	}
-	if err != nil {
-		return err
-	}
-	before, err := readBounded(path, 16<<10)
+	before, err := fsutil.ReadBounded(path, 16<<10)
 	if err != nil || !bytes.Equal(before, v.configBytes) {
 		v.lock()
 		return ErrChanged
@@ -194,11 +174,8 @@ func (v *Vault) replaceConfig(c config) error {
 		return err
 	}
 	v.lock()
-	if d, e := os.Open(v.root); e == nil {
-		_ = d.Sync()
-		_ = d.Close()
-	}
-	after, err := readBounded(path, 16<<10)
+	fsutil.SyncDir(v.root)
+	after, err := fsutil.ReadBounded(path, 16<<10)
 	if err != nil || !bytes.Equal(after, raw) {
 		return ErrChanged
 	}

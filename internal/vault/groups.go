@@ -4,7 +4,6 @@ import (
 	"errors"
 	"slices"
 	"sort"
-	"time"
 )
 
 type GroupMember struct {
@@ -28,7 +27,7 @@ type GroupEdit struct {
 	Expected []GroupMember `json:"expected"`
 }
 
-// A normal entry has one group. Divergent branches retain EVERY candidate;
+// A normal entry has one group. Divergent branches retain every candidate;
 // assigning the first head's group would conceal a concurrent move.
 func itemGroups(it *item) []string {
 	names := map[string]bool{}
@@ -82,10 +81,7 @@ func (v *Vault) groupCatalog() []GroupInfo {
 func (v *Vault) Groups() ([]GroupInfo, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, err
 	}
 	return v.groupCatalog(), nil
@@ -93,25 +89,18 @@ func (v *Vault) Groups() ([]GroupInfo, error) {
 func (v *Vault) MoveGroup(in GroupMove) ([]Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, err
 	}
 	return v.moveGroup(in)
 }
 
 // EditGroup binds the complete reviewed membership, including tombstones.
-// Empty target removes the group without deleting entries. There is no
-// permanent catalog; a concurrent offline writer can make the old name reappear.
+// Empty target removes the group without deleting entries.
 func (v *Vault) EditGroup(in GroupEdit) ([]Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, err
 	}
 	if v.cfg.Format < 3 {
@@ -191,7 +180,7 @@ func (v *Vault) moveGroup(in GroupMove) ([]Summary, error) {
 		m.Group = in.Group
 		m.Parents = []string{x.meta.Revision}
 		m.Revision = newID()
-		m.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		m.UpdatedAt = stamp()
 		d, err := v.document(x)
 		if err != nil {
 			return nil, err

@@ -73,7 +73,7 @@ func TestEncryptionAndDiscovery(t *testing.T) {
 	if !bytes.Contains(b, []byte("demo/key")) || !bytes.Contains(b, []byte("public description")) {
 		t.Fatal("public metadata missing")
 	}
-	list, err := v.List("description")
+	list, err := v.List(ListOptions{Query: "description"})
 	if err != nil || len(list) != 1 {
 		t.Fatalf("discover: %v %v", list, err)
 	}
@@ -82,7 +82,7 @@ func TestEncryptionAndDiscovery(t *testing.T) {
 		t.Fatal("discovery leaked value")
 	}
 	v.Lock()
-	if _, err = v.List(""); !errors.Is(err, ErrLocked) {
+	if _, err = v.List(ListOptions{}); !errors.Is(err, ErrLocked) {
 		t.Fatal(err)
 	}
 	if err = v.Unlock("incorrect-password"); err == nil {
@@ -193,7 +193,7 @@ func TestTwoDevicesKeepConflict(t *testing.T) {
 		}
 	}
 	copyFiles(t, filepath.Join(b.root, "records"), filepath.Join(a.root, "records"))
-	list, err := a.List("")
+	list, err := a.List(ListOptions{})
 	if err != nil || len(list) != 1 || list[0].State != "conflict" || list[0].Versions != 3 {
 		t.Fatal(list, err)
 	}
@@ -286,7 +286,7 @@ func TestBadMetadataAndPathAreRejected(t *testing.T) {
 	if err = v.SelectDirectory("relative/path"); err == nil {
 		t.Fatal("relative root accepted")
 	}
-	if _, err = v.List(strings.Repeat("x", 100)); err != nil {
+	if _, err = v.List(ListOptions{Query: strings.Repeat("x", 100)}); err != nil {
 		t.Fatal(err)
 	}
 }

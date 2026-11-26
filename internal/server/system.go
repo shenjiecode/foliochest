@@ -74,8 +74,7 @@ func (s *Server) lockSystem(reason string) {
 }
 
 // StartSystemMonitor waits for the initial observation before startup unlock.
-// Native observers don't register startup entries, touch credentials or change
-// the OS lock state. If readiness times out, auto-unlock fails closed.
+// If readiness times out, auto-unlock fails closed.
 func (s *Server) StartSystemMonitor(ctx context.Context) {
 	ready := make(chan struct{})
 	var once sync.Once

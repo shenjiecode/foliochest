@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 )
 
 func (s *NativeStartup) startupPath() string {
@@ -15,7 +17,7 @@ func (s *NativeStartup) startupPath() string {
 }
 func desktopQuote(value string) string {
 	// Desktop string escaping is applied before Exec quoting.
-	quoted := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "$", "\\$", "`", "\\`", "%", "%%").Replace(value)
+	quoted := strings.NewReplacer("\"", "\\\"", "%", "%%").Replace(value)
 	quoted = strings.ReplaceAll(quoted, "\\", "\\\\")
 	return "\"" + quoted + "\""
 }
@@ -77,28 +79,5 @@ func (s *NativeStartup) Set(enabled bool) error {
 	if info, e := os.Stat(s.Executable); e != nil || !info.Mode().IsRegular() || info.Mode()&0111 == 0 {
 		return errors.New("自启动程序不存在或不可执行")
 	}
-	dir := filepath.Dir(path)
-	if err = os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	file, err := os.CreateTemp(dir, ".keyfolio-startup-*")
-	if err != nil {
-		return err
-	}
-	tmp := file.Name()
-	defer os.Remove(tmp)
-	if err = file.Chmod(0600); err == nil {
-		_, err = file.Write(raw)
-	}
-	if err == nil {
-		err = file.Sync()
-	}
-	ce := file.Close()
-	if err == nil {
-		err = ce
-	}
-	if err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fsutil.WriteFile(path, raw)
 }

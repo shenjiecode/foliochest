@@ -56,7 +56,6 @@ func windowsSession(session uint32) (SystemEvent, error) {
 		return SystemEvent{}, ErrUnavailable
 	}
 	// WTSINFOEXW has a DWORD level, 8-byte-aligned union, then three DWORDs.
-	// We use no account names from the rest of the native structure.
 	raw := unsafe.Slice(buffer, int(size))
 	if binary.LittleEndian.Uint32(raw[:4]) != 1 || binary.LittleEndian.Uint32(raw[8:12]) != session {
 		return SystemEvent{}, ErrUnavailable
@@ -66,8 +65,7 @@ func windowsSession(session uint32) (SystemEvent, error) {
 	if flags > 1 {
 		return SystemEvent{}, ErrUnavailable
 	}
-	// Modern Windows 10/11 semantics. Windows 7 reversed these flags and is
-	// outside the supported Go/runtime and Keyfolio target versions.
+	// Windows 10/11 semantics.
 	return SystemEvent{Available: true, Locked: flags == 0 || state != 0}, nil
 }
 func WatchSystem(ctx context.Context, emit func(SystemEvent)) {
@@ -183,7 +181,6 @@ func pumpSystemWindow(ctx context.Context, proc uintptr, ready func()) error {
 		runtime.KeepAlive(name)
 	}()
 	// An invisible top-level window receives session and power notifications.
-	// Never call ShowWindow; there is no desktop UI or taskbar window.
 	hwnd, _, _ := eventUser32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(name)), 0, 0, 0, 0, 0, 0, 0, instance, 0)
 	if hwnd == 0 {
 		return ErrUnavailable

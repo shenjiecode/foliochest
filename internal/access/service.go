@@ -119,7 +119,6 @@ func (s *Service) Replace(clientID, clientName string, changes []vault.Change) (
 }
 
 // Decide is called only by an authenticated human UI or a trusted elicitation response.
-// It is deliberately NOT exposed as an MCP tool.
 func (s *Service) Decide(id string, accept bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

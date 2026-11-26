@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/access"
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
@@ -151,7 +152,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		err := s.unlockPassword(in.Password, r.URL.Path == "/api/vault/create")
-		in.Password = ""
 		if err != nil {
 			apiError(w, err, 400)
 			return
@@ -199,7 +199,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data, _ := json.Marshal(map[string]string{"directory": filepath.Clean(in.Directory)})
-		if err := writeLocal(filepath.Join(s.deviceDir, "location.json"), data); err != nil {
+		if err := fsutil.WriteFile(filepath.Join(s.deviceDir, "location.json"), data); err != nil {
 			apiError(w, err, 500)
 			return
 		}
@@ -261,19 +261,19 @@ func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
 		if !method(w, r, "GET") {
 			return
 		}
-		var out []vault.Summary
-		var err error
-		var groups []string
-		if r.URL.Query().Has("group") {
-			groups = []string{r.URL.Query().Get("group")}
+		query := r.URL.Query()
+		options := vault.ListOptions{Query: query.Get("q")}
+		switch query.Get("scope") {
+		case "trash":
+			options.Scope = vault.ListTrash
+		case "body":
+			options.Scope = vault.ListBody
 		}
-		if r.URL.Query().Get("scope") == "trash" {
-			out, err = s.Vault.Trash(r.URL.Query().Get("q"), groups...)
-		} else if r.URL.Query().Get("scope") == "body" {
-			out, err = s.Vault.Search(r.URL.Query().Get("q"), groups...)
-		} else {
-			out, err = s.Vault.List(r.URL.Query().Get("q"), groups...)
+		if query.Has("group") {
+			group := query.Get("group")
+			options.Group = &group
 		}
+		out, err := s.Vault.List(options)
 		if err != nil {
 			apiError(w, err, 409)
 			return

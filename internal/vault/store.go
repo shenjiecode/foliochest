@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 )
 
 type batchHeader struct {
@@ -39,6 +41,8 @@ type item struct {
 	state string
 	count int
 }
+
+func stamp() string { return time.Now().UTC().Format(time.RFC3339Nano) }
 
 type Vault struct {
 	mu          sync.Mutex
@@ -124,7 +128,7 @@ func (v *Vault) Init(password string) error {
 func (v *Vault) Unlock(password string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	data, err := readBounded(filepath.Join(v.root, "vault.json"), 16<<10)
+	data, err := fsutil.ReadBounded(filepath.Join(v.root, "vault.json"), 16<<10)
 	if err != nil {
 		return errors.New("无法读取资料库配置，请确认目录与同步状态")
 	}
@@ -173,13 +177,18 @@ func (v *Vault) Status() Status {
 func (v *Vault) Scan() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	return v.fresh()
+}
+
+// fresh requires v.mu to be held and preserves scan errors and lock transitions.
+func (v *Vault) fresh() error {
 	if len(v.key) == 0 {
 		return ErrLocked
 	}
 	return v.scan()
 }
 func (v *Vault) scan() error {
-	data, err := readBounded(filepath.Join(v.root, "vault.json"), 16<<10)
+	data, err := fsutil.ReadBounded(filepath.Join(v.root, "vault.json"), 16<<10)
 	if err != nil || !bytes.Equal(data, v.configBytes) {
 		v.lock()
 		return ErrChanged
@@ -214,7 +223,7 @@ func (v *Vault) scan() error {
 				return v.scanErr
 			}
 		}
-		raw, e := readBounded(filepath.Join(v.root, "records", f.Name()), MaxFileBytes)
+		raw, e := fsutil.ReadBounded(filepath.Join(v.root, "records", f.Name()), MaxFileBytes)
 		var b batch
 		if e == nil {
 			e = decodeStrict(raw, &b)
@@ -361,40 +370,44 @@ func summary(it *item) Summary {
 	}
 	return Summary{Group: group, CandidateGroups: candidates, EntryID: m.EntryID, Deleted: it.state == "deleted", Key: m.Key, Description: m.Description, Revision: m.Revision, ReadPolicy: m.ReadPolicy, WritePolicy: m.WritePolicy, State: it.state, Versions: it.count}
 }
-func (v *Vault) List(query string, group ...string) ([]Summary, error) {
-	return v.list(query, false, false, group)
-}
-func (v *Vault) Trash(query string, group ...string) ([]Summary, error) {
-	return v.list(query, false, true, group)
+
+type ListScope uint8
+
+const (
+	ListMetadata ListScope = iota
+	ListBody
+	ListTrash
+)
+
+type ListOptions struct {
+	Query string
+	Group *string // nil selects all groups; a pointer to "" selects ungrouped entries.
+	Scope ListScope
 }
 
-// Search is a human-only search. MCP discovery must continue to use List.
-func (v *Vault) Search(query string, group ...string) ([]Summary, error) {
-	return v.list(query, true, false, group)
-}
-
-func (v *Vault) list(query string, body, deleted bool, group []string) ([]Summary, error) {
+// List defaults to metadata discovery. Body and trash scopes are human-only.
+func (v *Vault) List(options ListOptions) ([]Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, err
 	}
+	if options.Scope > ListTrash {
+		return nil, errors.New("无效条目查询范围")
+	}
 	out := []Summary{}
-	query = strings.ToLower(strings.TrimSpace(query))
+	query := strings.ToLower(strings.TrimSpace(options.Query))
 	for key, it := range v.items {
-		if (it.state == "deleted") != deleted {
+		if (it.state == "deleted") != (options.Scope == ListTrash) {
 			continue
 		}
 		s := summary(it)
 		s.Key = key
-		if len(group) > 0 && !groupMatches(s, group[0]) {
+		if options.Group != nil && !groupMatches(s, *options.Group) {
 			continue
 		}
 		matches := query == "" || strings.Contains(strings.ToLower(s.Key+" "+s.Description+" "+strings.Join(itemGroups(it), " ")), query)
-		if !matches && body && it.state == "ready" {
+		if !matches && options.Scope == ListBody && it.state == "ready" {
 			doc, err := v.document(it.heads[0])
 			if err != nil {
 				return nil, err
@@ -411,10 +424,7 @@ func (v *Vault) list(query string, body, deleted bool, group []string) ([]Summar
 func (v *Vault) Get(key string) (Entry, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return Entry{}, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return Entry{}, err
 	}
 	x, err := v.ready(key)
@@ -427,10 +437,7 @@ func (v *Vault) Get(key string) (Entry, error) {
 func (v *Vault) PrepareReads(specs []ReadSpec) ([]ReadSpec, bool, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, false, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, false, err
 	}
 	return v.prepareReads(specs)
@@ -478,10 +485,7 @@ func (v *Vault) prepareReads(specs []ReadSpec) ([]ReadSpec, bool, error) {
 func (v *Vault) ReadMany(specs []ReadSpec, approved bool) ([]ReadResult, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, err
 	}
 	pinned, needs, err := v.prepareReads(specs)
@@ -534,10 +538,7 @@ func (v *Vault) ReadMany(specs []ReadSpec, approved bool) ([]ReadResult, error) 
 func (v *Vault) CheckChanges(changes []Change, human bool) (bool, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return false, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return false, err
 	}
 	return v.checkChanges(changes, human)
@@ -592,10 +593,7 @@ func (v *Vault) checkChanges(changes []Change, human bool) (bool, error) {
 func (v *Vault) Commit(changes []Change, human, approved bool) ([]Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, err
 	}
 	needs, err := v.checkChanges(changes, human)
@@ -608,7 +606,7 @@ func (v *Vault) Commit(changes []Change, human, approved bool) ([]Summary, error
 	b := batch{batchHeader: batchHeader{Format: v.cfg.Format, VaultID: v.cfg.VaultID, BatchID: newID(), Changes: []Metadata{}}}
 	docs := []Document{}
 	for _, c := range changes {
-		m := Metadata{EntryID: newID(), Revision: newID(), Parents: []string{}, Key: c.Key, ReadPolicy: Ask, WritePolicy: Ask, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+		m := Metadata{EntryID: newID(), Revision: newID(), Parents: []string{}, Key: c.Key, ReadPolicy: Ask, WritePolicy: Ask, UpdatedAt: stamp()}
 		d := Document{Format: "text", Attachments: []Attachment{}}
 		if x, e := v.ready(c.Key); e == nil {
 			m.EntryID = x.meta.EntryID

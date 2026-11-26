@@ -141,7 +141,7 @@ func TestEmptyBackupAndLockedExport(t *testing.T) {
 	if err = restored.Unlock(testPassword); err != nil {
 		t.Fatal(err)
 	}
-	list, err := restored.List("")
+	list, err := restored.List(ListOptions{})
 	if err != nil || len(list) != 0 {
 		t.Fatal(list, err)
 	}

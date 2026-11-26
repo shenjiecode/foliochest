@@ -4,7 +4,6 @@ import (
 	"errors"
 	"slices"
 	"sort"
-	"time"
 )
 
 type RenameChange struct {
@@ -17,15 +16,11 @@ type DeleteChange struct {
 	ExpectedHeads []string `json:"expected_heads"`
 }
 
-// These operations are human-only. Deletion appends an authenticated tombstone;
-// it does not erase encrypted history or free its current name for a new entry.
+// These operations are human-only. Deletion appends an authenticated tombstone.
 func (v *Vault) Rename(in RenameChange) (Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return Summary{}, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return Summary{}, err
 	}
 	if v.cfg.Format < 2 {
@@ -48,7 +43,7 @@ func (v *Vault) Rename(in RenameChange) (Summary, error) {
 	m.Key = in.NewKey
 	m.Revision = newID()
 	m.Parents = []string{x.meta.Revision}
-	m.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	m.UpdatedAt = stamp()
 	if err = validateMetadata(m); err != nil {
 		return Summary{}, err
 	}
@@ -61,10 +56,7 @@ func (v *Vault) Rename(in RenameChange) (Summary, error) {
 func (v *Vault) Delete(in DeleteChange) (Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return Summary{}, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return Summary{}, err
 	}
 	if v.cfg.Format < 2 {
@@ -87,7 +79,7 @@ func (v *Vault) Delete(in DeleteChange) (Summary, error) {
 	m.Deleted = true
 	m.ReadPolicy = read
 	m.WritePolicy = write
-	m.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	m.UpdatedAt = stamp()
 	return v.publishOne(m, Document{Format: "text", Attachments: []Attachment{}})
 }
 func (v *Vault) publishOne(m Metadata, doc Document) (Summary, error) {

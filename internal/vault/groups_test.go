@@ -43,12 +43,12 @@ func TestGroupMetadataDiscoveryAndValidation(t *testing.T) {
 		q, g string
 		n    int
 	}{{"", "项目 A", 1}, {"", "", 1}, {"项目 A", "项目 A", 1}, {"SYNTHETIC_BODY", "项目 A", 0}, {"", "不存在", 0}} {
-		rows, err := v.List(query.q, query.g)
+		rows, err := v.List(ListOptions{Query: query.q, Group: ptr(query.g)})
 		if err != nil || len(rows) != query.n {
 			t.Fatal(query, rows, err)
 		}
 	}
-	rows, err := v.Search("SYNTHETIC_BODY", "项目 A")
+	rows, err := v.List(ListOptions{Query: "SYNTHETIC_BODY", Group: ptr("项目 A"), Scope: ListBody})
 	if err != nil || len(rows) != 1 {
 		t.Fatal(rows, err)
 	}
@@ -114,7 +114,7 @@ func TestGroupMovesPreserveIdentityContentPoliciesAndHistory(t *testing.T) {
 	if _, err = v.EditGroup(GroupEdit{Source: "B", Target: "", Expected: info.Members}); err != nil {
 		t.Fatal(err)
 	}
-	trash, _ := v.Trash("")
+	trash, _ := v.List(ListOptions{Scope: ListTrash})
 	restored, err = v.Restore(RestoreChange{Key: "renamed", ExpectedHeads: []string{trash[0].Revision}, SourceRevision: a.Revision})
 	if err != nil || restored.Group != "" {
 		t.Fatal("restored removed group", restored, err)
@@ -176,8 +176,8 @@ func TestGroupRenameIncludesTrashAndBackupRoundTrip(t *testing.T) {
 	if _, err := v.EditGroup(GroupEdit{Source: "A", Target: "新组", Expected: g.Members}); err != nil {
 		t.Fatal(err)
 	}
-	active, _ := v.List("")
-	trash, _ := v.Trash("")
+	active, _ := v.List(ListOptions{})
+	trash, _ := v.List(ListOptions{Scope: ListTrash})
 	if len(active) != 1 || len(trash) != 1 || active[0].Group != "新组" || trash[0].Group != "新组" {
 		t.Fatal(active, trash)
 	}
@@ -210,7 +210,7 @@ func TestConcurrentGroupsKeepAllCandidatesAndRequireExplicitResolution(t *testin
 	}
 	copyFiles(t, right.root, left.root)
 	for _, group := range []string{"A", "B"} {
-		rows, err := left.List("", group)
+		rows, err := left.List(ListOptions{Group: ptr(group)})
 		if err != nil || len(rows) != 1 || rows[0].State != "conflict" || !reflect.DeepEqual(rows[0].CandidateGroups, []string{"A", "B"}) {
 			t.Fatal(rows, err)
 		}
@@ -252,7 +252,7 @@ func TestGroupMoveAndOfflineEditConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	copyFiles(t, right.root, left.root)
-	rows, err := left.List("")
+	rows, err := left.List(ListOptions{})
 	if err != nil || len(rows) != 1 || rows[0].State != "conflict" || len(rows[0].CandidateGroups) != 2 {
 		t.Fatal(rows, err)
 	}
@@ -287,7 +287,7 @@ func TestGroupTamperAndMissingHeadCannotExposeAncestor(t *testing.T) {
 			if _, err = v.Get("a"); err == nil {
 				t.Fatal("served ancestor")
 			}
-			rows, err := v.List("")
+			rows, err := v.List(ListOptions{})
 			if err != nil || rows[0].State != "missing" {
 				t.Fatal(rows, err)
 			}

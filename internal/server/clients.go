@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/access"
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 )
 
 type Client struct {
@@ -47,37 +48,12 @@ func newClients(dir string) (*clients, error) {
 	}
 	return c, nil
 }
-func writeLocal(path string, b []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".local-*")
-	if err != nil {
-		return err
-	}
-	tmp := f.Name()
-	defer os.Remove(tmp)
-	if err = f.Chmod(0600); err == nil {
-		_, err = f.Write(b)
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	ce := f.Close()
-	if err == nil {
-		err = ce
-	}
-	if err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
-}
 func (c *clients) save() error {
 	b, err := json.Marshal(c.list)
 	if err != nil {
 		return err
 	}
-	return writeLocal(c.path, b)
+	return fsutil.WriteFile(c.path, b)
 }
 func (c *clients) All() []Client {
 	c.mu.Lock()

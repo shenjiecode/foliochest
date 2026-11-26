@@ -3,7 +3,7 @@ package vault
 import "sort"
 
 // Identity heads, not historical names, determine the current namespace.
-// A divergent rename reserves EVERY candidate name until explicit resolution.
+// A divergent rename reserves every candidate name until explicit resolution.
 func (v *Vault) indexVersions(groups map[string][]*version, versions map[string]*version, invalid map[string]bool, ready func(*batch) bool) {
 	identities := map[string]*item{}
 	for id, all := range groups {

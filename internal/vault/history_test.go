@@ -86,16 +86,16 @@ func TestMergeBindsAllHeadsAndPreservesHistory(t *testing.T) {
 func TestHumanBodySearchDoesNotChangeDiscovery(t *testing.T) {
 	v := testVault(t)
 	add(t, v, "entry", Deny, Deny)
-	rows, err := v.List("SYNTHETIC_SECRET")
+	rows, err := v.List(ListOptions{Query: "SYNTHETIC_SECRET"})
 	if err != nil || len(rows) != 0 {
 		t.Fatal(rows, err)
 	}
-	rows, err = v.Search("synthetic_secret")
+	rows, err = v.List(ListOptions{Query: "synthetic_secret", Scope: ListBody})
 	if err != nil || len(rows) != 1 {
 		t.Fatal(rows, err)
 	}
 	v.Lock()
-	if _, err = v.Search("secret"); !errors.Is(err, ErrLocked) {
+	if _, err = v.List(ListOptions{Query: "secret", Scope: ListBody}); !errors.Is(err, ErrLocked) {
 		t.Fatal(err)
 	}
 }

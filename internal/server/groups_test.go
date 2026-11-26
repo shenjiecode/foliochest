@@ -115,6 +115,13 @@ func TestMCPGroupDiscoveryCannotManageGroups(t *testing.T) {
 			t.Fatal("discovery leaked body")
 		}
 	}
+	discovered, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "discover_entries", Arguments: map[string]any{"query": "SYNTHETIC_PRIVATE_VALUE"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out := toolOutput[discoverResult](t, discovered); len(out.Entries) != 0 {
+		t.Fatal("MCP discovery searched private content", out)
+	}
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "replace_entries", Arguments: map[string]any{"changes": []map[string]any{{"key": first.Key, "expected_revision": rows[0].Revision, "group": "forged", "value": "SYNTHETIC_NEW"}}}})
 	// The SDK may reject unknown fields; even if ignored, the group must stay intact.
 	_ = result
@@ -185,7 +192,7 @@ func TestActualV04VaultSurvivesBrandAndExplicitGroupUpgrade(t *testing.T) {
 	if err != nil || entry.Group != "" || entry.Value != "SYNTHETIC_V2_VALUE" || string(entry.Attachments[0].Data) != "SYNTHETIC_ATTACHMENT" {
 		t.Fatal(err)
 	}
-	trash, _ := b.app.Vault.Trash("")
+	trash, _ := b.app.Vault.List(vault.ListOptions{Scope: vault.ListTrash})
 	if len(trash) != 1 {
 		t.Fatal(trash)
 	}
@@ -223,7 +230,7 @@ func TestActualV04VaultSurvivesBrandAndExplicitGroupUpgrade(t *testing.T) {
 	if err != nil || current.Group != "迁移资料" || current.Value != entry.Value {
 		t.Fatal(err)
 	}
-	trash, _ = b.app.Vault.Trash("")
+	trash, _ = b.app.Vault.List(vault.ListOptions{Scope: vault.ListTrash})
 	if len(trash) != 1 {
 		t.Fatal("migration revived tombstone")
 	}

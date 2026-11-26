@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
@@ -85,7 +86,7 @@ func (s *Server) serveMaintenance(w http.ResponseWriter, r *http.Request) bool {
 			settings.LockOnSystemEvents = *in.LockOnSystemEvents
 		}
 		raw, _ := json.Marshal(settings)
-		err := writeLocal(filepath.Join(s.deviceDir, "settings.json"), raw)
+		err := fsutil.WriteFile(filepath.Join(s.deviceDir, "settings.json"), raw)
 		if err == nil {
 			s.idle.settings = settings
 			s.idle.lastActivity = s.idle.now()
@@ -208,10 +209,9 @@ func (s *Server) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		apiError(w, err, 400)
 		return
 	}
-	in.Password = ""
 	// Do not switch the active vault or persist a new location on a failed restore.
 	raw, _ := json.Marshal(map[string]string{"directory": filepath.Clean(in.Directory)})
-	if err := writeLocal(filepath.Join(s.deviceDir, "location.json"), raw); err != nil {
+	if err := fsutil.WriteFile(filepath.Join(s.deviceDir, "location.json"), raw); err != nil {
 		apiError(w, errors.New("备份已恢复，但本机目录设置保存失败；请手动切换到恢复目录"), 500)
 		return
 	}

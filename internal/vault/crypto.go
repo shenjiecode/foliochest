@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"unicode/utf8"
 
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -138,28 +139,6 @@ func decodeStrict(data []byte, dst any) error {
 	}
 	return nil
 }
-func readBounded(path string, max int64) ([]byte, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Size() > max {
-		return nil, errors.New("文件类型或大小不受支持")
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	b, err := io.ReadAll(io.LimitReader(f, max+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(b)) > max {
-		return nil, errors.New("文件过大")
-	}
-	return b, nil
-}
 func publish(dir, name string, data []byte) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -170,31 +149,14 @@ func publish(dir, name string, data []byte) error {
 	if _, err := os.Lstat(filepath.Join(dir, name)); !os.IsNotExist(err) {
 		return errors.New("目标文件已存在，拒绝覆盖")
 	}
-	f, err := os.CreateTemp(dir, ".pending-*")
+	tmp, err := fsutil.WriteTemp(dir, ".pending-*", data)
 	if err != nil {
 		return err
 	}
-	tmp := f.Name()
 	defer os.Remove(tmp)
-	if err = f.Chmod(0600); err == nil {
-		_, err = f.Write(data)
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	closeErr := f.Close()
-	if err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		return err
-	}
 	if err = os.Rename(tmp, filepath.Join(dir, name)); err != nil {
 		return fmt.Errorf("发布文件失败: %w", err)
 	}
-	if d, e := os.Open(dir); e == nil {
-		_ = d.Sync()
-		_ = d.Close()
-	}
+	fsutil.SyncDir(dir)
 	return nil
 }

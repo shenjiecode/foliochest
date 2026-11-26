@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/access"
+	"github.com/shenjiecode/keyfolio/internal/fsutil"
 	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
@@ -44,26 +45,14 @@ func loadDevice(directory, address string) (*deviceState, error) {
 	}
 	d := &deviceState{credentials: platform.NativeCredentials(), startup: startup}
 	path := filepath.Join(directory, "device.json")
-	info, err := os.Lstat(path)
+	raw, err := fsutil.ReadBounded(path, 16<<10)
 	if os.IsNotExist(err) {
 		return d, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("读取本机 device.json: %w", err)
 	}
-	if !info.Mode().IsRegular() || info.Size() > 16<<10 {
-		return nil, errors.New("本机 device.json 类型或大小不受支持")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	raw, err := io.ReadAll(io.LimitReader(file, 16<<10+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) > 16<<10 || json.Unmarshal(raw, &d.record) != nil {
+	if json.Unmarshal(raw, &d.record) != nil {
 		return nil, errors.New("本机设备设置损坏，请保留后检查 device.json")
 	}
 	if d.record.Enabled && (d.record.CredentialID == "" || !filepath.IsAbs(d.record.Directory) || len(d.record.Binding.ConfigHash) != 64 || len(d.record.Binding.VaultID) != 32) {
@@ -76,7 +65,7 @@ func (s *Server) saveEnrollment(record enrollment) error {
 	if err != nil {
 		return err
 	}
-	return writeLocal(filepath.Join(s.deviceDir, "device.json"), raw)
+	return fsutil.WriteFile(filepath.Join(s.deviceDir, "device.json"), raw)
 }
 func (s *Server) deviceNotice() string {
 	s.device.mu.Lock()
@@ -123,8 +112,7 @@ func (s *Server) authenticateTrusted(r *http.Request, sessionID string, session 
 	}
 }
 
-// TryAutoUnlock is one-shot. It does not retry after manual/idle locking and
-// never grants authentication to a new browser just because the vault is open.
+// TryAutoUnlock is one-shot; it does not retry after manual/idle locking.
 func (s *Server) TryAutoUnlock(ctx context.Context) {
 	d := s.device
 	d.mu.Lock()
@@ -224,7 +212,7 @@ func (s *Server) serveDevice(w http.ResponseWriter, r *http.Request) bool {
 		}
 		if in.Enabled {
 			raw, _ := json.Marshal(map[string]string{"directory": s.Vault.Status().Directory})
-			if err := writeLocal(filepath.Join(s.deviceDir, "location.json"), raw); err != nil {
+			if err := fsutil.WriteFile(filepath.Join(s.deviceDir, "location.json"), raw); err != nil {
 				apiError(w, err, 500)
 				return true
 			}
@@ -247,7 +235,6 @@ func (s *Server) serveDevice(w http.ResponseWriter, r *http.Request) bool {
 		if !decode(w, r, &in) {
 			return true
 		}
-		defer func() { in.Password = "" }()
 		d := s.device
 		d.mu.Lock()
 		defer d.mu.Unlock()
@@ -338,7 +325,6 @@ func (s *Server) serveDevice(w http.ResponseWriter, r *http.Request) bool {
 		if !decode(w, r, &in) {
 			return true
 		}
-		defer func() { in.Password = "" }()
 		if !in.Confirmed {
 			apiError(w, errors.New("请先备份并确认已更新所有设备程序、暂停其他设备写入"), 400)
 			return true
@@ -382,7 +368,6 @@ func (s *Server) serveDevice(w http.ResponseWriter, r *http.Request) bool {
 		if !decode(w, r, &in) {
 			return true
 		}
-		defer func() { in.Current = ""; in.Next = "" }()
 		if err := vault.ValidatePassword(in.Next); err != nil {
 			apiError(w, err, 400)
 			return true

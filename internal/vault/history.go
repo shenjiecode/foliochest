@@ -4,7 +4,6 @@ import (
 	"errors"
 	"slices"
 	"sort"
-	"time"
 )
 
 type VersionInfo struct {
@@ -29,14 +28,11 @@ type RestoreChange struct {
 	Format         *string  `json:"format,omitempty"`
 }
 
-// History and HistoricalEntry are human-only interfaces, never MCP tools.
+// History and HistoricalEntry are human-only interfaces.
 func (v *Vault) History(key string) (History, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return History{}, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return History{}, err
 	}
 	it, ok := v.items[key]
@@ -94,10 +90,7 @@ func (v *Vault) historical(key, revision string) (*version, error) {
 func (v *Vault) HistoricalEntry(key, revision string) (Entry, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return Entry{}, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return Entry{}, err
 	}
 	x, err := v.historical(key, revision)
@@ -119,15 +112,11 @@ func restrictive(a, b Policy) Policy {
 	return Allow
 }
 
-// Restore creates a new version whose parents are ALL reviewed current heads.
-// It never erases history or restores an older, more permissive policy.
+// Restore creates a new version with all reviewed heads and their stricter policies.
 func (v *Vault) Restore(in RestoreChange) (Summary, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return Summary{}, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return Summary{}, err
 	}
 	it, actual, read, write, err := v.reviewHeads(in.Key, in.ExpectedHeads)
@@ -156,7 +145,7 @@ func (v *Vault) Restore(in RestoreChange) (Summary, error) {
 	if err != nil {
 		return Summary{}, err
 	}
-	m := Metadata{EntryID: id, Revision: newID(), Parents: actual, Key: target, Description: x.meta.Description, ReadPolicy: read, WritePolicy: write, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	m := Metadata{EntryID: id, Revision: newID(), Parents: actual, Key: target, Description: x.meta.Description, ReadPolicy: read, WritePolicy: write, UpdatedAt: stamp()}
 	groups := itemGroups(it)
 	if len(groups) > 1 && in.Group == nil {
 		return Summary{}, errors.New("当前分支的分组不一致，请明确选择恢复后的分组")

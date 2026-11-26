@@ -64,11 +64,7 @@ func (s *Server) newMCP(client Client) http.Handler {
 		Capabilities: &mcp.ServerCapabilities{},
 	})
 	mcp.AddTool(server, &mcp.Tool{Name: "discover_entries", Description: "Find relevant entries using public key, description and group. Optionally filter by exact group (empty string means ungrouped). Returns metadata and revision only, never value or attachment contents.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: &closed}}, func(ctx context.Context, req *mcp.CallToolRequest, args discoverArgs) (*mcp.CallToolResult, discoverResult, error) {
-		var groups []string
-		if args.Group != nil {
-			groups = []string{*args.Group}
-		}
-		entries, err := s.Vault.List(args.Query, groups...)
+		entries, err := s.Vault.List(vault.ListOptions{Query: args.Query, Group: args.Group})
 		return nil, discoverResult{Entries: entries}, err
 	})
 	mcp.AddTool(server, &mcp.Tool{Name: "read_entries", Description: "Read selected values/attachments under per-key policy. Multiple keys use a single approval request. Pending results require actual human approval, not a model-supplied flag.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: &closed}}, func(ctx context.Context, req *mcp.CallToolRequest, args readArgs) (*mcp.CallToolResult, access.Result, error) {

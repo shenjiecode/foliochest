@@ -35,10 +35,7 @@ func (v *Vault) completeSnapshot() error {
 func (v *Vault) Backup() ([]byte, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if len(v.key) == 0 {
-		return nil, ErrLocked
-	}
-	if err := v.scan(); err != nil {
+	if err := v.fresh(); err != nil {
 		return nil, err
 	}
 	if err := v.completeSnapshot(); err != nil {
@@ -87,8 +84,7 @@ func (v *Vault) Backup() ([]byte, error) {
 }
 
 // RestoreBackup validates ciphertext and the password in an isolated staging
-// directory, then installs it into a new/empty directory. Existing data is never
-// overwritten. Only Keyfolio's archive layout is accepted; no general extraction.
+// directory, then installs it into a new/empty directory.
 func RestoreBackup(archive []byte, destination, password string) error {
 	if len(archive) > MaxBackupBytes {
 		return errors.New("备份超过 66 MiB")
