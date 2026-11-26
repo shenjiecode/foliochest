@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ArchiveRestore,
   ChevronDown,
@@ -18,7 +19,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Brand } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { groupLabel } from "@/lib/groups";
 import { type Group, type VaultAction, vaultName } from "@/lib/types";
 export type View = "entries" | "trash" | "settings" | "approvals";
 export const titles: Record<View, string> = {
@@ -32,7 +32,7 @@ export function Sidebar({
   count,
   groups,
   view,
-  group,
+  children,
   onGo,
   onLock,
   onOpen,
@@ -41,17 +41,11 @@ export function Sidebar({
   count: number;
   groups: Group[];
   view: View;
-  group: string | null;
-  onGo: (view: View, group?: string | null) => void;
+  children?: ReactNode;
+  onGo: (view: View) => void;
   onLock: () => void;
   onOpen: (kind: VaultAction) => void;
 }) {
-  const items = groups.some((g) => g.name === "")
-    ? groups
-    : [
-        ...groups,
-        { name: "", count: 0, deleted_count: 0, blocked: 0, members: [] },
-      ];
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -81,47 +75,16 @@ export function Sidebar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <nav className="primary-nav" aria-label="主导航">
-        <button
-          className={cn(
-            "nav-item",
-            view === "entries" && group === null && "active",
-          )}
-          aria-current={
-            view === "entries" && group === null ? "page" : undefined
-          }
-          onClick={() => onGo("entries")}
-        >
-          <Layers3 />
-          <span>全部资料</span>
-          <span className="count">{count}</span>
-        </button>
-      </nav>
-      <div className="group-section scroll-region">
-        <h2 className="nav-label">分组</h2>
-        <nav className="group-nav" aria-label="资料分组">
-          {items.map((g) => (
-            <button
-              key={g.name}
-              className={cn(
-                "nav-item",
-                (view === "entries" || view === "trash") &&
-                  group === g.name &&
-                  "active",
-              )}
-              onClick={() =>
-                onGo(view === "trash" ? "trash" : "entries", g.name)
-              }
-            >
-              <FolderClosed />
-              <span>{groupLabel(g.name)}</span>
-              <span className="count">
-                {view === "trash" ? g.deleted_count : g.count}
-              </span>
-            </button>
-          ))}
+      {view !== "entries" && (
+        <nav className="primary-nav" aria-label="主导航">
+          <button className="nav-item" onClick={() => onGo("entries")}>
+            <Layers3 />
+            <span>全部资料</span>
+            <span className="count">{count}</span>
+          </button>
         </nav>
-      </div>
+      )}
+      {children || <div className="sidebar-spacer" />}
       <nav className="sidebar-footer" aria-label="管理">
         <button
           className={cn("nav-item", view === "trash" && "active")}

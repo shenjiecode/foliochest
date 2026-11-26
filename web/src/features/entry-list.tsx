@@ -19,12 +19,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { IconButton } from "@/components/common";
 import { ErrorNotice } from "@/components/forms";
-import { groupBuckets, groupLabel } from "@/lib/groups";
+import { groupBuckets } from "@/lib/groups";
 import { type Summary, type Member, stateLabels } from "@/lib/types";
 import { cn } from "@/lib/utils";
 type Props = {
   entries: Summary[];
-  group: string | null;
   query: string;
   bodySearch: boolean;
   trash: boolean;
@@ -39,29 +38,21 @@ type Props = {
   onCheck: (entry: Summary, value: boolean) => void;
   onNew: () => void;
   onMove: () => void;
-  onManage: () => void;
+  onManage: (name: string) => void;
   onClear: () => void;
 };
 export function EntryList(p: Props) {
   const [collapsed, setCollapsed] = useState(new Set<string>());
+  const buckets = groupBuckets(p.entries);
+  if (!p.query && !buckets.some((bucket) => bucket.id === "group:"))
+    buckets.push({ id: "group:", label: "未分组", entries: [] });
   return (
     <section
       className={cn("entry-list", p.checked.size > 0 && "selection-mode")}
     >
       <header className="list-header">
         <div className="list-title">
-          <h1>
-            {p.trash
-              ? "回收站"
-              : p.group === null
-                ? "全部资料"
-                : groupLabel(p.group)}
-          </h1>
-          {p.group && p.format >= 3 && (
-            <IconButton label="管理分组" onClick={p.onManage}>
-              <FolderCog />
-            </IconButton>
-          )}
+          <h1>{p.trash ? "回收站" : "资料"}</h1>
           {!p.trash && (
             <IconButton label="新建资料" onClick={p.onNew}>
               <Plus />
@@ -107,14 +98,14 @@ export function EntryList(p: Props) {
             正在读取…
           </p>
         )}
-        {!p.loading && !p.entries.length && (
+        {!p.loading && !p.entries.length && !!p.query && (
           <p className="list-feedback">
             {p.query ? "没有匹配的资料" : "没有资料"}
           </p>
         )}
-        {groupBuckets(p.entries).map((bucket) => (
+        {buckets.map((bucket) => (
           <section key={bucket.id}>
-            {p.group === null && (
+            <div className="tree-group-row">
               <button
                 className="list-group-heading"
                 aria-expanded={!collapsed.has(bucket.id)}
@@ -131,8 +122,18 @@ export function EntryList(p: Props) {
                 <span>{bucket.label}</span>
                 <span>· {bucket.entries.length}</span>
               </button>
-            )}
-            {(!collapsed.has(bucket.id) || p.group !== null) &&
+              {bucket.id.startsWith("group:") &&
+                bucket.id !== "group:" &&
+                p.format >= 3 && (
+                  <IconButton
+                    label={"管理分组 " + bucket.label}
+                    onClick={() => p.onManage(bucket.id.slice(6))}
+                  >
+                    <FolderCog />
+                  </IconButton>
+                )}
+            </div>
+            {!collapsed.has(bucket.id) &&
               bucket.entries.map((entry) => (
                 <div
                   key={entry.key}
@@ -171,6 +172,9 @@ export function EntryList(p: Props) {
                   />
                 </div>
               ))}
+            {!collapsed.has(bucket.id) &&
+              !bucket.entries.length &&
+              !p.loading && <p className="list-feedback">没有资料</p>}
           </section>
         ))}
       </div>

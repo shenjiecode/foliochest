@@ -310,7 +310,16 @@ export function EntryEditor({
               onChange={update}
             />
             <section className="entry-body" aria-label="正文">
-              <h3 className="document-section-heading">正文</h3>
+              <div className="body-format">
+                <ChoiceField
+                  id="entry-format"
+                  label="正文格式"
+                  value={draft.format}
+                  options={formatChoices}
+                  disabled={!editing || task.busy || loading}
+                  onChange={(format) => update({ format })}
+                />
+              </div>
               {editing ? (
                 <BodyEditor
                   value={draft.value}
@@ -330,16 +339,6 @@ export function EntryEditor({
                   {draft.value}
                 </pre>
               )}
-              <div className="body-format">
-                <ChoiceField
-                  id="entry-format"
-                  label="正文格式"
-                  value={draft.format}
-                  options={formatChoices}
-                  disabled={!editing || task.busy || loading}
-                  onChange={(format) => update({ format })}
-                />
-              </div>
             </section>
             <Attachments
               files={draft.attachments || []}

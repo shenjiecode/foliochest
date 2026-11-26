@@ -32,7 +32,8 @@ export function SettingRow({
 export function Brand() {
   return (
     <span className="wordmark">
-      FolioChest<span className="sr-only"> · 资料匣</span>
+      <span className="wordmark-cn">资料匣</span>
+      <span className="wordmark-en">FolioChest</span>
     </span>
   );
 }

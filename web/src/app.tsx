@@ -147,7 +147,6 @@ function Workspace({
   const [view, setView] = useState<View>(() =>
       location.hash === "#approvals" ? "approvals" : "entries",
     ),
-    [group, setGroup] = useState<string | null>(null),
     [selected, setSelected] = useState<string | null>(null),
     [isNew, setIsNew] = useState(false);
   const [query, setQuery] = useState(""),
@@ -191,7 +190,7 @@ function Workspace({
     }
     action();
   };
-  const go = (next: View, nextGroup: string | null = null) =>
+  const go = (next: View) =>
     void guard(() => {
       setView(next);
       history.replaceState(
@@ -201,7 +200,6 @@ function Workspace({
           location.search +
           (next === "approvals" ? "#approvals" : ""),
       );
-      setGroup(nextGroup);
       setSelected(null);
       setIsNew(false);
       setDetail(false);
@@ -225,7 +223,6 @@ function Workspace({
     setDirty(false);
     setIsNew(false);
     setView(deleted ? "trash" : "entries");
-    setGroup(null);
     setQuery("");
     setChecked(new Map());
     setSelected(deleted ? null : key);
@@ -246,15 +243,70 @@ function Workspace({
       count={state.vault.entries}
       groups={catalog.groups}
       view={view}
-      group={group}
       onGo={go}
       onLock={lock}
       onOpen={(action) => open({ kind: "vault", action })}
-    />
+    >
+      {(view === "entries" || view === "trash") && (
+        <EntryList
+          entries={filterEntries(catalog.entries, null, query, search.matches)}
+          query={query}
+          bodySearch={bodySearch}
+          trash={view === "trash"}
+          selected={selected}
+          checked={checked}
+          format={state.vault.format}
+          loading={catalog.loading || search.loading}
+          error={search.error}
+          onQuery={setQuery}
+          onBodySearch={setBodySearch}
+          onSelect={(key) =>
+            void guard(() => {
+              if (selected === key && !isNew) {
+                setDetail(true);
+                setMobile(false);
+                return;
+              }
+              setMobile(false);
+              setSelected(key);
+              setIsNew(false);
+              setDetail(true);
+            })
+          }
+          onCheck={(entry, value) =>
+            setChecked((before) => {
+              const next = new Map(before);
+              if (value)
+                next.set(entry.key, {
+                  key: entry.key,
+                  expected_revision: entry.revision,
+                });
+              else next.delete(entry.key);
+              return next;
+            })
+          }
+          onNew={() =>
+            void guard(() => {
+              setMobile(false);
+              setIsNew(true);
+              setSelected(null);
+              setEditorEpoch((n) => n + 1);
+              setDetail(true);
+            })
+          }
+          onMove={() => open({ kind: "group" })}
+          onManage={(name) => {
+            const source = catalog.groups.find((g) => g.name === name);
+            if (source) open({ kind: "group", source });
+          }}
+          onClear={() => setChecked(new Map())}
+        />
+      )}
+    </Sidebar>
   );
   return (
     <>
-      <div className="app-layout">
+      <div className="app-layout" data-view={view} data-detail-open={detail}>
         <div className="desktop-sidebar">{sidebar}</div>
         <main className="main-shell">
           <header className="topbar">
@@ -302,62 +354,6 @@ function Workspace({
           )}
           {(view === "entries" || view === "trash") && (
             <div className="workspace" data-detail-open={detail}>
-              <EntryList
-                entries={filterEntries(
-                  catalog.entries,
-                  group,
-                  query,
-                  search.matches,
-                )}
-                group={group}
-                query={query}
-                bodySearch={bodySearch}
-                trash={view === "trash"}
-                selected={selected}
-                checked={checked}
-                format={state.vault.format}
-                loading={catalog.loading || search.loading}
-                error={search.error}
-                onQuery={setQuery}
-                onBodySearch={setBodySearch}
-                onSelect={(key) =>
-                  void guard(() => {
-                    if (selected === key && !isNew) {
-                      setDetail(true);
-                      return;
-                    }
-                    setSelected(key);
-                    setIsNew(false);
-                    setDetail(true);
-                  })
-                }
-                onCheck={(entry, value) =>
-                  setChecked((before) => {
-                    const next = new Map(before);
-                    if (value)
-                      next.set(entry.key, {
-                        key: entry.key,
-                        expected_revision: entry.revision,
-                      });
-                    else next.delete(entry.key);
-                    return next;
-                  })
-                }
-                onNew={() =>
-                  void guard(() => {
-                    setIsNew(true);
-                    setSelected(null);
-                    setEditorEpoch((n) => n + 1);
-                    setDetail(true);
-                  })
-                }
-                onMove={() => open({ kind: "group" })}
-                onManage={() => {
-                  const source = catalog.groups.find((g) => g.name === group);
-                  if (source) open({ kind: "group", source });
-                }}
-                onClear={() => setChecked(new Map())}
-              />
               {selected !== null || isNew ? (
                 <EntryEditor
                   key={
@@ -367,7 +363,7 @@ function Workspace({
                   summary={catalog.entries.find((e) => e.key === selected)}
                   groups={catalog.groups}
                   format={state.vault.format}
-                  initialGroup={group || ""}
+                  initialGroup=""
                   onDirty={setDirty}
                   onBusy={setBusy}
                   onSaved={(key) => changed(key)}
@@ -427,7 +423,7 @@ function Workspace({
         <DialogContent className="navigation-drawer">
           <DialogTitle className="sr-only">导航</DialogTitle>
           <DialogDescription className="sr-only">
-            选择分组或设置
+            展开分组、选择资料或打开设置
           </DialogDescription>
           {sidebar}
         </DialogContent>
@@ -463,12 +459,11 @@ function Workspace({
           groups={catalog.groups}
           format={state.vault.format}
           onClose={() => setDialog(null)}
-          onChanged={(next) => {
+          onChanged={() => {
             setChecked(new Map());
             setSelected(null);
             setIsNew(false);
             setDetail(false);
-            setGroup(next);
             refresh();
           }}
         />

@@ -10,6 +10,50 @@ fieldset {
   flex: 1;
   min-height: 0;
 }
+.sidebar-spacer {
+  flex: 1;
+}
+.sidebar .entry-list {
+  flex: 1;
+  border: 0;
+}
+.sidebar .list-header {
+  padding: 4px 0 12px;
+}
+.sidebar .list-title {
+  margin-bottom: 12px;
+}
+.sidebar .list-title h1 {
+  font-size: 16px;
+}
+.sidebar .list-footer {
+  padding: 10px 0;
+}
+.sidebar .entry-row {
+  padding: 10px 8px 10px 22px;
+  border-radius: 6px;
+}
+.sidebar .vault-switch {
+  margin-bottom: 16px;
+}
+.tree-group-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tree-group-row .list-group-heading {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.tree-group-row .list-group-heading > span:first-of-type {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tree-group-row .icon-button {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
 .entry-document {
   flex: 1;
   min-height: 0;
@@ -119,7 +163,7 @@ fieldset {
   color: var(--muted-foreground);
 }
 .body-format {
-  margin-top: 10px;
+  margin-bottom: 10px;
 }
 .body-editor {
   min-width: 0;
