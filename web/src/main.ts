@@ -16,7 +16,7 @@ import {
   upgradeForm,
   bindUpgrade,
 } from "./manage";
-import { esc } from "./ui";
+import { esc, encodeBase64, downloadAttachment, withBusy } from "./ui";
 import { mountHistory } from "./history";
 import { backup, bindRestore, restoreForm } from "./recovery";
 import { renderMarkdown } from "./markdown";
@@ -604,54 +604,44 @@ function renderEditor(isNew: boolean): void {
     void run(async () => {
       const form = $("#entry-form"),
         sequence = entryLoadSequence;
-      const prior = [
-        ...$("#editor").querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-          "input,button,select,textarea",
-        ),
-      ].map((el) => [el, el.disabled] as const);
       const button = $<HTMLButtonElement>("#entry-form button[type=submit]");
-      prior.forEach(([el]) => (el.disabled = true));
-      button.textContent = "保存中…";
-      try {
-        const key = field("#entry-key");
-        await api("/api/entries/save", {
-          changes: [
-            {
-              key,
-              expected_revision: entry?.revision ?? "",
-              description: field("#entry-description"),
-              ...(state.vault.format >= 3
-                ? { group: field("#entry-group").trim() }
-                : {}),
-              value: field("#entry-value"),
-              format: field("#entry-format"),
-              attachments: draftAttachments,
-              read_policy: field("#read-policy"),
-              write_policy: field("#write-policy"),
-            },
-          ],
-        });
-        if (!form.isConnected || sequence !== entryLoadSequence) return;
-        const saved = await api<Entry>(
-          `/api/entry?key=${encodeURIComponent(key)}`,
-        );
-        if (!form.isConnected || sequence !== entryLoadSequence) return;
-        editor = saved;
-        groups.selected.delete(key);
-        dirty = false;
-        draftAttachments = editor.attachments || [];
-        renderEditor(false);
-        await refreshEntries();
-        notice("条目已保存为新的加密版本。");
-      } finally {
-        if (button.isConnected) {
-          button.disabled = false;
-          button.textContent = "保存条目";
+      await withBusy($("#editor"), async () => {
+        button.textContent = "保存中…";
+        try {
+          const key = field("#entry-key");
+          await api("/api/entries/save", {
+            changes: [
+              {
+                key,
+                expected_revision: entry?.revision ?? "",
+                description: field("#entry-description"),
+                ...(state.vault.format >= 3
+                  ? { group: field("#entry-group").trim() }
+                  : {}),
+                value: field("#entry-value"),
+                format: field("#entry-format"),
+                attachments: draftAttachments,
+                read_policy: field("#read-policy"),
+                write_policy: field("#write-policy"),
+              },
+            ],
+          });
+          if (!form.isConnected || sequence !== entryLoadSequence) return;
+          const saved = await api<Entry>(
+            `/api/entry?key=${encodeURIComponent(key)}`,
+          );
+          if (!form.isConnected || sequence !== entryLoadSequence) return;
+          editor = saved;
+          groups.selected.delete(key);
+          dirty = false;
+          draftAttachments = editor.attachments || [];
+          renderEditor(false);
+          await refreshEntries();
+          notice("条目已保存为新的加密版本。");
+        } finally {
+          if (button.isConnected) button.textContent = "保存条目";
         }
-        prior.forEach(([el, disabled]) => {
-          if (el.isConnected) el.disabled = disabled;
-        });
-      }
+      });
     });
   };
   $("#upload").onchange = () =>
@@ -676,13 +666,10 @@ function renderEditor(isNew: boolean): void {
           bytes.fill(0);
           return;
         }
-        let binary = "";
-        for (let i = 0; i < bytes.length; i += 16384)
-          binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
         draftAttachments.push({
           name: file.name,
           media_type: file.type || "application/octet-stream",
-          data: btoa(binary),
+          data: encodeBase64(bytes),
         });
       }
       input.value = "";
@@ -713,15 +700,7 @@ function renderAttachments(): void {
     (button) =>
       (button.onclick = () => {
         const file = draftAttachments[Number(button.dataset.download)];
-        const bytes = Uint8Array.from(atob(file.data), (c) => c.charCodeAt(0));
-        const href = URL.createObjectURL(
-          new Blob([bytes], { type: "application/octet-stream" }),
-        );
-        const link = document.createElement("a");
-        link.href = href;
-        link.download = file.name;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(href), 1000);
+        downloadAttachment(file);
       }),
   );
 }

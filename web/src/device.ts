@@ -1,4 +1,4 @@
-import { API, esc } from "./ui";
+import { API, esc, withBusy } from "./ui";
 import "./device.css";
 export type DeviceState = {
   auto_unlock: boolean;
@@ -46,36 +46,22 @@ export function bindDevice(
   };
   enabled.onchange = toggle;
   toggle();
-  const busy = async (form: HTMLFormElement, action: () => Promise<void>) => {
-    const controls = Array.from(
-      form.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-        "input, button",
-      ),
-    );
-    const disabled = controls.map((control) => control.disabled);
-    controls.forEach((control) => {
-      control.disabled = true;
+  const busy = (form: HTMLFormElement, action: () => Promise<void>) =>
+    withBusy(form, async () => {
+      try {
+        await action();
+      } catch (error) {
+        if (form === enrollment && form.isConnected)
+          await saved("").catch(() => {});
+        throw error;
+      } finally {
+        form
+          .querySelectorAll<HTMLInputElement>('input[type="password"]')
+          .forEach((input) => {
+            input.value = "";
+          });
+      }
     });
-    form.setAttribute("aria-busy", "true");
-    try {
-      await action();
-    } catch (error) {
-      if (form === enrollment && form.isConnected)
-        await saved("").catch(() => {});
-      throw error;
-    } finally {
-      form.removeAttribute("aria-busy");
-      form
-        .querySelectorAll<HTMLInputElement>('input[type="password"]')
-        .forEach((input) => {
-          input.value = "";
-        });
-      if (form.isConnected)
-        controls.forEach((control, index) => {
-          control.disabled = disabled[index];
-        });
-    }
-  };
   startup.onsubmit = (event) => {
     event.preventDefault();
     void run(() =>

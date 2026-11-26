@@ -1,4 +1,4 @@
-import { API, esc } from "./ui";
+import { API, esc, withBusy } from "./ui";
 
 type Context = {
   api: API;
@@ -20,10 +20,6 @@ export function bindManagement(
 ): void {
   const form = host.querySelector<HTMLFormElement>("#rename-form");
   if (!form) return;
-  const controls = () =>
-    host.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-      "input,button,select,textarea",
-    );
   const change = async (deleted: boolean) => {
     if (ctx.isDirty())
       throw new Error("请先保存或放弃正文草稿，再进行删除或重命名。");
@@ -37,9 +33,7 @@ export function bindManagement(
       )
     )
       return;
-    const prior = [...controls()].map((el) => [el, el.disabled] as const);
-    prior.forEach(([el]) => (el.disabled = true));
-    try {
+    await withBusy(host, async () => {
       await ctx.api(
         deleted ? "/api/entry/delete" : "/api/entry/rename",
         deleted
@@ -53,11 +47,7 @@ export function bindManagement(
           ? "已移到回收站；历史仍保留，可选择删除前的版本恢复。"
           : "key 已重命名；正文、附件与权限保持不变。",
       );
-    } finally {
-      prior.forEach(([el, disabled]) => {
-        if (el.isConnected) el.disabled = disabled;
-      });
-    }
+    });
   };
   form.onsubmit = (event) => {
     event.preventDefault();
@@ -85,26 +75,21 @@ export function bindUpgrade(
         form.querySelector<HTMLInputElement>("#upgrade-password")!;
       const confirmed =
         form.querySelector<HTMLInputElement>("#upgrade-confirmed")!;
-      const button = form.querySelector<HTMLButtonElement>("button")!;
       if (!confirmed.checked)
         throw new Error("请先完成备份与其他设备的升级准备。");
       const value = password.value;
-      button.disabled = true;
-      password.disabled = true;
-      confirmed.disabled = true;
-      try {
-        const result = await api<{ warning?: string }>("/api/vault/upgrade", {
-          password: value,
-          confirmed: true,
-          target_format: 3,
-        });
-        await onUpgraded(result.warning || "");
-      } finally {
-        password.value = "";
-        button.disabled = false;
-        password.disabled = false;
-        confirmed.disabled = false;
-      }
+      await withBusy(form, async () => {
+        try {
+          const result = await api<{ warning?: string }>("/api/vault/upgrade", {
+            password: value,
+            confirmed: true,
+            target_format: 3,
+          });
+          await onUpgraded(result.warning || "");
+        } finally {
+          password.value = "";
+        }
+      });
     });
   };
 }
