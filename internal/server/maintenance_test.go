@@ -35,7 +35,7 @@ func TestMaintenanceRequiresHumanSessionAndCSRF(t *testing.T) {
 		t.Fatal(code, string(body))
 	}
 	destination := filepath.Join(t.TempDir(), "restored")
-	code, result := b.request("POST", "/api/vault/restore", map[string]any{"archive": body, "directory": destination, "password": "synthetic-test-password"}, b.csrf)
+	code, result := b.request("POST", "/api/vault/restore", map[string]any{"archive": body, "directory": destination, "password": "synthetic-test-password", "confirmed": true}, b.csrf)
 	if code != 200 {
 		t.Fatal(code, string(result))
 	}

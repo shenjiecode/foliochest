@@ -90,11 +90,11 @@ try {
       </TooltipProvider>,
     ),
   );
-  assert.equal(document.querySelector("h1")?.textContent, "尚未选择资料库");
+  assert.equal(document.querySelector("h1")?.textContent, "开始使用资料匣");
   assert.equal(document.querySelector(".unlock-vault, .lock-caption"), null);
-  assert.ok(button("打开资料库"));
+  assert.ok(button("接入已有资料库"));
   assert.ok(button("从备份恢复"));
-  await click("创建资料库");
+  await click("设置主密码并开始");
   assert.equal(directory().value, "");
   assert.equal(directory().readOnly, false);
   await fill("#vault-directory", "/synthetic/manual");
@@ -143,7 +143,7 @@ try {
     0,
     "selecting/going back/cancelling must not switch or persist a vault",
   );
-  await click("打开资料库");
+  await click("接入已有资料库");
   pick = async () =>
     json({ error: "无法打开系统文件夹选择器，请手动输入绝对路径" }, 503);
   await fill("#vault-directory", "/synthetic/kept");
@@ -161,7 +161,7 @@ try {
   assert.ok(button("选择文件夹"));
   await click("取消");
   // Expiring the page session must discard a late native-dialog result.
-  await click("创建资料库");
+  await click("设置主密码并开始");
   const late = deferred<Response>();
   pick = () => late.promise;
   await click("选择文件夹");
@@ -171,7 +171,7 @@ try {
   await act(async () =>
     late.resolve(json({ cancelled: false, directory: "/synthetic/stale" })),
   );
-  await click("创建资料库");
+  await click("设置主密码并开始");
   assert.equal(directory().value, "");
   await fill("#vault-directory", "/synthetic/new-vault");
   await submit();
@@ -207,7 +207,7 @@ try {
     },
   };
   await act(async () => client.refresh());
-  assert.equal(document.querySelector("h1")?.textContent, "找不到资料库");
+  assert.equal(document.querySelector("h1")?.textContent, "找不到资料文件");
   assert.ok(
     document
       .querySelector(".lock-caption")
@@ -215,7 +215,8 @@ try {
   );
   assert.equal(document.querySelector("#vault-password"), null);
   assert.equal(document.body.textContent?.includes("设置主密码"), false);
-  await click("创建新资料库");
+  assert.equal(document.body.textContent?.includes("创建新资料库"), false);
+  await click("重新定位原资料库");
   assert.equal(
     directory().value,
     "",

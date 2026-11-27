@@ -21,6 +21,7 @@ export function Unlock({ state }: { state: AppState }) {
     exit = useQuit();
   const selected = !!state.vault.directory;
   const exists = state.vault.exists;
+  const configured = state.configured ?? (selected || exists);
   const blocked =
     state.system.enabled && (state.system.locked || state.system.sleeping);
   return (
@@ -47,12 +48,17 @@ export function Unlock({ state }: { state: AppState }) {
             />
           </div>
           <h1>
-            {!selected
-              ? "尚未选择资料库"
-              : exists
-                ? "解锁资料库"
-                : "找不到资料库"}
+            {exists
+              ? "解锁资料匣"
+              : configured
+                ? "找不到资料文件"
+                : "开始使用资料匣"}
           </h1>
+          <p className="field-note">
+            {configured
+              ? "一个主密码解锁全部资料；锁定后网页和 MCP 都无法访问资料。"
+              : "创建或接入一个资料库，用分组整理资料，不需要另设软件密码。"}
+          </p>
           {selected && (
             <div className="unlock-vault">
               <FolderClosed />
@@ -101,16 +107,24 @@ export function Unlock({ state }: { state: AppState }) {
                   原位置没有可读取的资料库，请检查目录、权限或同步状态。不会在这里自动新建。
                 </p>
               )}
-              <Button onClick={() => setFlow(selected ? "open" : "create")}>
-                {selected ? "打开其他资料库" : "创建资料库"}
+              <Button onClick={() => setFlow(configured ? "open" : "create")}>
+                {configured ? "重新定位原资料库" : "设置主密码并开始"}
                 <ArrowRight />
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => setFlow(selected ? "create" : "open")}
-              >
-                {selected ? "创建新资料库" : "打开资料库"}
-              </Button>
+              {!configured && (
+                <Button variant="outline" onClick={() => setFlow("open")}>
+                  接入已有资料库
+                </Button>
+              )}
+              {configured && (
+                <Button
+                  variant="outline"
+                  disabled={task.busy}
+                  onClick={() => void task.run((ctx) => ctx.refresh())}
+                >
+                  重新检查原位置
+                </Button>
+              )}
             </div>
           )}
           {state.system.enabled &&
@@ -124,16 +138,6 @@ export function Unlock({ state }: { state: AppState }) {
           )}
           {state.device_notice && <Notice>{state.device_notice}</Notice>}
           <div className="unlock-links">
-            {exists && (
-              <>
-                <button disabled={task.busy} onClick={() => setFlow("open")}>
-                  打开其他资料库
-                </button>
-                <button disabled={task.busy} onClick={() => setFlow("create")}>
-                  创建资料库
-                </button>
-              </>
-            )}
             <button disabled={task.busy} onClick={() => setFlow("restore")}>
               从备份恢复
             </button>
@@ -169,15 +173,19 @@ export function VaultFlow({
     confirm = useConfirm();
   const busy = task.busy || picker.busy;
   const creating = kind === "create";
+  const migrating = kind === "migrate";
   const passwordStep = creating && stage === "password";
-  const title =
-    kind === "restore"
-      ? "从备份恢复"
+  const title = migrating
+    ? "迁移保存位置"
+    : kind === "restore"
+      ? "恢复资料库备份"
       : passwordStep
         ? "设置主密码"
         : creating
           ? "选择新资料库目录"
-          : "打开资料库";
+          : state.configured
+            ? "重新定位原资料库"
+            : "接入已有资料库";
   const browse = () =>
     picker.run(
       async (ctx) => {
@@ -217,30 +225,37 @@ export function VaultFlow({
           if (kind === "restore" || state.authenticated) {
             if (
               !(await confirm({
-                title:
-                  kind === "restore" ? "恢复并切换资料库？" : "切换资料库？",
+                title: kind === "restore" ? "恢复本库备份？" : "迁移保存位置？",
                 description:
                   kind === "restore"
-                    ? "先校验备份，再恢复到新目录或空目录。不会覆盖现有资料，完成后需要重新解锁。"
-                    : "当前资料库将锁定，未完成的 AI 请求会失效。",
+                    ? "仅接受本库备份。校验后使用恢复目录，原目录保留；自动解锁会关闭，待审批请求失效，需重新输入备份密码。请先暂停其他设备写入。"
+                    : "先锁定资料库，再复制到新目录或空目录，原目录保留。网页和 MCP 暂停访问，待审批请求失效，自动解锁会关闭；完成后重新解锁。请先暂停外部同步写入。",
               }))
             )
               return false;
           }
-          if (kind === "restore") {
+          if (migrating) {
+            await ctx.request("/api/vault/migrate", {
+              directory,
+              password,
+              confirmed: true,
+            });
+            await ctx.refresh("保存位置已迁移，原目录已保留；请重新解锁。");
+          } else if (kind === "restore") {
             const archive = await readFile(file!, 66 * 1024 * 1024, ctx.assert);
             await ctx.request("/api/vault/restore", {
               directory,
               password,
               archive,
+              confirmed: true,
             });
             await ctx.refresh("备份已恢复，请使用备份的主密码解锁。");
           } else if (creating) {
             await ctx.request("/api/vault/create", { directory, password });
             await ctx.refresh("资料库已创建。");
           } else {
-            await ctx.request("/api/vault/select", { directory });
-            await ctx.refresh("已打开资料库，请输入主密码解锁。");
+            await ctx.request("/api/vault/select", { directory, password });
+            await ctx.refresh("资料匣已解锁。");
           }
           return true;
         } finally {
@@ -276,7 +291,9 @@ export function VaultFlow({
                   ? "创建资料库"
                   : creating
                     ? "下一步"
-                    : "打开资料库"}
+                    : migrating
+                      ? "验证并迁移"
+                      : "验证并解锁"}
           </Button>
         </>
       }
@@ -289,6 +306,11 @@ export function VaultFlow({
         }}
       >
         <fieldset disabled={busy} className="field-grid">
+          {migrating && (
+            <Notice>
+              将完整资料与本机空组目录复制到新位置，原文件不删除。这不是切换其他资料库。迁移期间资料库会锁定。
+            </Notice>
+          )}
           {kind === "restore" && (
             <>
               <Notice>
@@ -315,7 +337,7 @@ export function VaultFlow({
               id="vault-directory"
               label="资料库目录"
               note={
-                creating || kind === "restore"
+                creating || kind === "restore" || migrating
                   ? "选择新文件夹或空文件夹，也可以输入绝对路径。"
                   : "选择包含 vault.json 的文件夹。"
               }
@@ -353,10 +375,10 @@ export function VaultFlow({
               <ErrorNotice message={picker.error} />
             </Field>
           )}
-          {(passwordStep || kind === "restore") && (
+          {(passwordStep || !creating) && (
             <Field
               id="vault-password"
-              label={creating ? "主密码" : "备份的主密码"}
+              label={kind === "restore" ? "备份的主密码" : "主密码"}
               note={
                 creating
                   ? "至少 12 个字符。忘记密码且没有有效恢复材料时无法恢复。"

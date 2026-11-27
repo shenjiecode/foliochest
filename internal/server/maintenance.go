@@ -195,31 +195,42 @@ func (s *Server) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		Archive   []byte `json:"archive"`
 		Directory string `json:"directory"`
 		Password  string `json:"password"`
+		Confirmed bool   `json:"confirmed"`
 	}
 	// Base64 expands the encrypted archive; this limit applies only to restoration.
 	if !decodeLimit(w, r, &in, 90<<20) {
 		return
 	}
 	defer clear(in.Archive)
+	if !in.Confirmed {
+		apiError(w, errors.New("请确认恢复本库备份"), 400)
+		return
+	}
+	id := s.boundID()
+	if s.hasBoundVault() && id == "" {
+		apiError(w, errors.New("原库身份无法确认，请先恢复原位置的 vault.json 并重启"), 409)
+		return
+	}
+	gen := s.Vault.Generation()
 	if err := platform.SeparateDirectories(in.Directory, s.deviceDir); err != nil {
 		apiError(w, err, 400)
 		return
 	}
-	if err := vault.RestoreBackup(in.Archive, in.Directory, in.Password); err != nil {
+	if err := vault.RestoreBackupForVault(in.Archive, in.Directory, in.Password, id); err != nil {
 		apiError(w, err, 400)
 		return
 	}
-	// Do not switch the active vault or persist a new location on a failed restore.
-	raw, _ := json.Marshal(map[string]string{"directory": filepath.Clean(in.Directory)})
-	if err := fsutil.WriteFile(filepath.Join(s.deviceDir, "location.json"), raw); err != nil {
-		apiError(w, errors.New("备份已恢复，但本机目录设置保存失败；请手动切换到恢复目录"), 500)
+	if id == "" {
+		var err error
+		id, err = vault.IdentityAt(in.Directory)
+		if err != nil {
+			apiError(w, err, 400)
+			return
+		}
+	}
+	if err := s.activateSingleVault(w, r, in.Directory, id, gen); err != nil {
+		apiError(w, err, 409)
 		return
 	}
-	if err := s.Vault.SelectDirectory(in.Directory); err != nil {
-		apiError(w, err, 400)
-		return
-	}
-	s.knownVault.Store(true)
-	s.Access.Sweep()
 	writeJSON(w, map[string]bool{"ok": true})
 }

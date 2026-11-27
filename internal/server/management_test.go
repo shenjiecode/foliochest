@@ -3,8 +3,6 @@ package server
 import (
 	"encoding/json"
 	"github.com/shenjiecode/keyfolio/internal/vault"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -71,32 +69,11 @@ func TestManagementHTTPRequiresHumanSessionAndCSRF(t *testing.T) {
 	}
 }
 func TestUpgradeLegacyHTTPAndRevokeEnrollment(t *testing.T) {
-	b, credentials := setupDeviceHTTP(t)
-	root := t.TempDir()
-	err := filepath.WalkDir("testdata/v1", func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel("testdata/v1", path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(root, rel)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0700)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, 0600)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = b.app.Vault.SelectDirectory(root); err != nil {
-		t.Fatal(err)
-	}
+	root := copyFixture(t, "testdata/v1")
+	b := setupSelectionHTTP(t, root, t.TempDir())
+	credentials := &memoryCredentials{values: map[string][]byte{}}
+	b.app.device.credentials = credentials
+	b.app.device.startup = &memoryStartup{}
 	if code, data := b.request("POST", "/api/vault/unlock", map[string]string{"password": "synthetic-test-password"}, b.csrf); code != 200 {
 		t.Fatal(code, string(data))
 	}

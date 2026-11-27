@@ -35,9 +35,9 @@ export function Settings({
         </TabsList>
         <TabsContent value="vault" className="settings-body">
           <section className="settings-section">
-            <SettingRow title="资料库目录" note={state.vault.directory}>
-              <Button variant="outline" onClick={() => onOpen("open")}>
-                切换
+            <SettingRow title="保存位置" note={state.vault.directory}>
+              <Button variant="outline" onClick={() => onOpen("migrate")}>
+                迁移位置
               </Button>
             </SettingRow>
             <SettingRow title="资料库格式" note={String(state.vault.format)}>
@@ -77,7 +77,7 @@ export function Settings({
             <ErrorNotice message={task.error} />
             <SettingRow
               title="从备份恢复"
-              note="校验后恢复到新目录或空目录，不覆盖现有资料。"
+              note="仅恢复本库备份；校验后使用恢复目录，原目录保留，不覆盖已有资料。恢复后需重新解锁。"
             >
               <Button variant="outline" onClick={() => onOpen("restore")}>
                 恢复
@@ -91,7 +91,10 @@ export function Settings({
         <TabsContent value="security" className="settings-body">
           <SecuritySettings state={state} />
           <section className="settings-section">
-            <SettingRow title="主密码" note="变更后锁定并关闭本机设备授权。">
+            <SettingRow
+              title="主密码"
+              note="进入资料匣与解锁资料使用同一个密码。变更后锁定并关闭本机设备授权。"
+            >
               <Button variant="outline" onClick={() => setDialog("password")}>
                 变更主密码
               </Button>

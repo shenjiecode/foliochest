@@ -100,7 +100,7 @@ func TestFirstUseCreationAndMissingLocation(t *testing.T) {
 		t.Fatal("missing vault recreated")
 	}
 }
-func TestExplicitNewDirectoryCanBeCreatedAndExistingCanBeOpened(t *testing.T) {
+func TestExplicitNewDirectoryCanBeCreatedButCannotSwitchAfterBinding(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "explicit-new")
 	b := setupSelectionHTTP(t, root, t.TempDir())
 	code, data := b.request("POST", "/api/vault/create", map[string]string{"directory": root, "password": "synthetic-test-password"}, b.csrf)
@@ -114,8 +114,8 @@ func TestExplicitNewDirectoryCanBeCreatedAndExistingCanBeOpened(t *testing.T) {
 	}
 	v.Lock()
 	code, data = b.request("POST", "/api/vault/select", map[string]string{"directory": other}, b.csrf)
-	if code != 200 || b.app.Vault.Status().Directory != other || !b.app.Vault.Locked() {
-		t.Fatalf("open %d %s", code, data)
+	if code != 409 || b.app.Vault.Status().Directory != root || b.app.Vault.Locked() {
+		t.Fatalf("switch should be denied %d %s", code, data)
 	}
 }
 func TestCreationAndSelectionCannotHijackAnotherBrowser(t *testing.T) {

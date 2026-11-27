@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 import {
-  ArchiveRestore,
-  ChevronDown,
   FolderClosed,
-  FolderOpen,
   Layers3,
   LockKeyhole,
   Plus,
@@ -11,17 +8,10 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/common";
 import { cn } from "@/lib/utils";
-import { type Group, type VaultAction, vaultName } from "@/lib/types";
+import { type Group } from "@/lib/types";
 export type View = "entries" | "trash" | "settings" | "approvals";
 export const titles: Record<View, string> = {
   entries: "资料库",
@@ -39,7 +29,6 @@ export function Sidebar({
   onGo,
   onLock,
   onQuit,
-  onOpen,
   onNew,
 }: {
   directory: string;
@@ -51,7 +40,6 @@ export function Sidebar({
   onGo: (view: View) => void;
   onLock: () => void;
   onQuit: () => void;
-  onOpen: (kind: VaultAction) => void;
   onNew: () => void;
 }) {
   return (
@@ -61,30 +49,11 @@ export function Sidebar({
         {notice}
       </div>
       <div className="vault-picker-row">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="vault-switch" title={directory}>
-              <FolderClosed />
-              <span>{vaultName(directory)}</span>
-              <ChevronDown />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" matchTriggerWidth>
-            <DropdownMenuItem onSelect={() => onOpen("open")}>
-              <FolderOpen />
-              打开其他资料库
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onOpen("create")}>
-              <Plus />
-              创建资料库
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onOpen("restore")}>
-              <ArchiveRestore />
-              从备份恢复
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="vault-switch single-vault-label" title={directory}>
+          <FolderClosed />
+          <span>全部资料</span>
+          <span className="count">{count}</span>
+        </div>
         <Button
           type="button"
           variant="outline"

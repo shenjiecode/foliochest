@@ -142,6 +142,11 @@ func (v *Vault) initAt(root, password string) error {
 	return v.scan()
 }
 func (v *Vault) Unlock(password string) error {
+	return v.UnlockForVault(password, "")
+}
+
+// UnlockForVault rejects a replaced library before publishing any decryption key.
+func (v *Vault) UnlockForVault(password, expectedID string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.root == "" {
@@ -154,6 +159,9 @@ func (v *Vault) Unlock(password string) error {
 	var c config
 	if err = decodeStrict(data, &c); err != nil {
 		return errors.New("资料库配置不完整或不受支持")
+	}
+	if expectedID != "" && c.VaultID != expectedID {
+		return errors.New("资料文件不属于已绑定的资料库")
 	}
 	key, err := c.unlock(password)
 	if err != nil {

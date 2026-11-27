@@ -168,8 +168,8 @@ func copyFixture(t *testing.T, source string) string {
 	return root
 }
 func TestActualV04VaultSurvivesBrandAndExplicitGroupUpgrade(t *testing.T) {
-	b := setupHTTP(t)
 	root := copyFixture(t, "testdata/v2")
+	b := setupSelectionHTTP(t, root, t.TempDir())
 	original := map[string][]byte{}
 	paths, _ := filepath.Glob(filepath.Join(root, "records", "*.json"))
 	for _, path := range paths {
@@ -178,9 +178,6 @@ func TestActualV04VaultSurvivesBrandAndExplicitGroupUpgrade(t *testing.T) {
 			t.Fatal(err)
 		}
 		original[path] = raw
-	}
-	if err := b.app.Vault.SelectDirectory(root); err != nil {
-		t.Fatal(err)
 	}
 	if code, data := b.request("POST", "/api/vault/unlock", map[string]string{"password": "synthetic-test-password"}, b.csrf); code != 200 {
 		t.Fatal(code, string(data))

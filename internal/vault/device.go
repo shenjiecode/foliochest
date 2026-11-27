@@ -14,6 +14,22 @@ import (
 	"github.com/shenjiecode/keyfolio/internal/fsutil"
 )
 
+// IdentityAt reads public identity only; it does not authenticate or unlock data.
+func IdentityAt(directory string) (string, error) {
+	raw, err := fsutil.ReadBounded(filepath.Join(directory, "vault.json"), 16<<10)
+	if err != nil {
+		return "", err
+	}
+	var c config
+	if err = decodeStrict(raw, &c); err != nil {
+		return "", err
+	}
+	if !c.valid() {
+		return "", ErrChanged
+	}
+	return c.VaultID, nil
+}
+
 type Binding struct {
 	VaultID    string `json:"vault_id"`
 	ConfigHash string `json:"config_hash"`

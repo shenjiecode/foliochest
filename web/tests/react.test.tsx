@@ -225,7 +225,7 @@ try {
   await act(async () => client.refresh());
   assert.ok(!text().includes("SYNTHETIC_ONE_TIME_TOKEN"));
   assert.ok(!text().includes("SYNTHETIC_UNSAVED_DRAFT"));
-  assert.ok(text().includes("解锁资料库"));
+  assert.ok(text().includes("解锁资料匣"));
   // Authenticate again and finish a file read after the session has disappeared.
   server = { ...server, authenticated: true };
   await act(async () => client.refresh());

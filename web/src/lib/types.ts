@@ -22,6 +22,7 @@ export type Entry = Omit<Summary, "state" | "versions"> & {
 };
 export type AppState = {
   authenticated: boolean;
+  configured?: boolean;
   csrf: string;
   version: string;
   device_notice: string;
@@ -96,7 +97,7 @@ export type Device = {
   startup_error: string;
   notice: string;
 };
-export type VaultAction = "open" | "create" | "restore";
+export type VaultAction = "open" | "create" | "restore" | "migrate";
 export const policyLabels: Record<Policy, string> = {
   allow: "允许",
   ask: "需要授权",

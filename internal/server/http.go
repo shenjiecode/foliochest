@@ -46,6 +46,7 @@ type Server struct {
 	groupMu         sync.Mutex
 	picker          sync.Mutex
 	chooseDirectory platform.DirectoryPicker
+	singleVaultID   atomic.Value
 	knownVault      atomic.Bool
 }
 
@@ -77,6 +78,9 @@ func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, erro
 	}
 	s := &Server{chooseDirectory: platform.PickDirectory, system: &systemState{heartbeat: time.Now(), now: time.Now}, device: device, idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}
 	s.knownVault.Store(v.Status().Exists || rememberedLocation(v.Status().Directory, deviceDir))
+	if err = s.initSingleVault(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +165,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status.Entries = 0
 			status.Issues = []string{}
 		}
-		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": buildinfo.Version, "device_notice": s.deviceNotice(), "system": s.SystemStatus()})
+		writeJSON(w, map[string]any{"vault": status, "authenticated": authenticated, "csrf": session.CSRF, "version": buildinfo.Version, "device_notice": s.deviceNotice(), "configured": s.hasBoundVault(), "system": s.SystemStatus()})
 	case "/api/app/quit":
 		if !method(w, r, "POST") {
 			return
@@ -227,6 +231,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.restoreBackup(w, r)
+	case "/api/vault/migrate":
+		if !s.authorized(session) {
+			apiError(w, vault.ErrLocked, 401)
+			return
+		}
+		s.migrateVault(w, r)
 	case "/api/vault/select":
 		s.selectVault(w, r, session)
 	default:

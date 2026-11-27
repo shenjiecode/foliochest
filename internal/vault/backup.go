@@ -35,6 +35,24 @@ func (v *Vault) completeSnapshot() error {
 func (v *Vault) Backup() ([]byte, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	return v.backup()
+}
+
+// BackupAndLock freezes a complete migration snapshot before any further writes.
+func (v *Vault) BackupAndLock(password string) ([]byte, uint64, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if err := v.verifyPassword(password); err != nil {
+		return nil, 0, err
+	}
+	raw, err := v.backup()
+	if err != nil {
+		return nil, 0, err
+	}
+	v.lock()
+	return raw, v.generation, nil
+}
+func (v *Vault) backup() ([]byte, error) {
 	if err := v.fresh(); err != nil {
 		return nil, err
 	}
@@ -86,6 +104,11 @@ func (v *Vault) Backup() ([]byte, error) {
 // RestoreBackup validates ciphertext and the password in an isolated staging
 // directory, then installs it into a new/empty directory.
 func RestoreBackup(archive []byte, destination, password string) error {
+	return RestoreBackupForVault(archive, destination, password, "")
+}
+
+// Expected identity is checked after decryption, before publishing the destination.
+func RestoreBackupForVault(archive []byte, destination, password, expectedID string) error {
 	if len(archive) > MaxBackupBytes {
 		return errors.New("备份超过 66 MiB")
 	}
@@ -174,6 +197,9 @@ func RestoreBackup(archive []byte, destination, password string) error {
 		return err
 	}
 	err = candidate.completeSnapshot()
+	if err == nil && expectedID != "" && candidate.cfg.VaultID != expectedID {
+		err = errors.New("这份备份不属于已绑定的资料库，不能用来切换其他库")
+	}
 	candidate.Lock()
 	if err != nil {
 		return err
@@ -197,6 +223,14 @@ func RestoreBackup(archive []byte, destination, password string) error {
 		_ = d.Close()
 	}
 	return nil
+}
+
+// ValidateRestoreDestination performs the same non-destructive preflight used by restore.
+func ValidateRestoreDestination(path string) error {
+	if !filepath.IsAbs(path) {
+		return errors.New("目标必须是绝对目录路径")
+	}
+	return emptyDestination(path)
 }
 func emptyDestination(path string) error {
 	info, err := os.Lstat(path)

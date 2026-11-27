@@ -291,7 +291,6 @@ function Workspace({
       onNew={() => createEntry()}
       onLock={lock}
       onQuit={() => void guard(() => void exit.quit())}
-      onOpen={(action) => open({ kind: "vault", action })}
     >
       {(view === "entries" || view === "trash") && (
         <EntryList

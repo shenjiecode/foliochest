@@ -14,6 +14,7 @@ A locally run encrypted vault managed via a browser UI, with per-key AI access c
 
 ## Features
 
+- **One Vault, One Master Password**: Bind one vault per local instance and organize it with groups. Locking stops both web and MCP data access. Maintenance supports location migration and same-vault recovery, not switching libraries.
 - **Local Web UI + Single Binary**: Go backend with an embedded React + TypeScript + shadcn/ui web app; no runtime Node.js or external CDN required.
 - **Plaintext Discovery, Encrypted Payloads**: Argon2id (`64 MiB`, 3 iterations) key derivation + AES-256-GCM encryption for bodies and attachments.
 - **Content & Organization**: Plaintext, Markdown (with safe preview, no HTML/remote image loading), JSON editing assistance, encrypted attachments, single-level groups, history browsing/restore, conflict merging, and soft-delete trash.
@@ -31,7 +32,7 @@ npm --prefix web run build
 go run ./cmd/foliochest
 ```
 
-Open `http://127.0.0.1:7463/` to create a new vault, open an existing directory, or restore from a backup.
+Open `http://127.0.0.1:7463/` to create, attach, or restore your single vault on first use; subsequent visits use its master password. Location migration retains the original files and copies local empty groups. Independent empty groups are not included in ZIP backups yet.
 
 Build a standalone binary:
 

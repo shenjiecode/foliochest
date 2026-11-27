@@ -360,7 +360,7 @@ func TestDeviceStartupAndIdleLockRemainIndependent(t *testing.T) {
 }
 func TestCannotPutDeviceDirectoryInsideVault(t *testing.T) {
 	b, _ := setupDeviceHTTP(t)
-	if code, _ := b.request("POST", "/api/vault/select", map[string]string{"directory": b.app.deviceDir}, b.csrf); code != 400 {
+	if code, _ := b.request("POST", "/api/vault/select", map[string]string{"directory": b.app.deviceDir}, b.csrf); code != 409 {
 		t.Fatal("device files could be synced with vault", code)
 	}
 	_, err := New(vault.New(b.app.deviceDir), filepath.Join(b.app.deviceDir, "nested"), b.url, b.app.static)

@@ -114,7 +114,7 @@ func (s *Server) finishUnlock(sequence uint64) error {
 	return nil
 }
 func (s *Server) unlockPassword(password string) error {
-	return s.unlockWith(func() error { return s.Vault.Unlock(password) })
+	return s.unlockWith(func() error { return s.Vault.UnlockForVault(password, s.boundID()) })
 }
 func (s *Server) unlockWith(operation func() error) error {
 	sequence, err := s.beginUnlock(false)
@@ -122,6 +122,14 @@ func (s *Server) unlockWith(operation func() error) error {
 		return err
 	}
 	if err = operation(); err != nil {
+		return err
+	}
+	b, err := s.Vault.Binding()
+	if err == nil {
+		err = s.bindID(b.VaultID)
+	}
+	if err != nil {
+		s.Access.Lock()
 		return err
 	}
 	return s.finishUnlock(sequence)

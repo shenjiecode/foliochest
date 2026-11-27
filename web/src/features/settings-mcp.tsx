@@ -56,8 +56,9 @@ export function MCPSettings() {
       <h2>本机 MCP</h2>
       <p className="path-value">{location.origin}/mcp</p>
       <p className="settings-footnote">
-        每个 harness 使用独立凭据；主密码不提供给
-        AI。支持交互确认的客户端在原处审批，否则使用网页的授权提示。
+        每个 AI 客户端使用独立接入凭据，不使用主密码。资料匣必须保持解锁，锁定后
+        MCP 也无法访问资料。
+        读取和修改仍按每条资料的权限执行；支持交互确认的客户端在原处审批，否则在网页确认。
       </p>
       <form
         className="section-action"

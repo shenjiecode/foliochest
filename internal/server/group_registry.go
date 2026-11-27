@@ -17,6 +17,10 @@ type groupRegistry struct {
 	Names []string `json:"names"`
 }
 
+func (s *Server) groupRegistryPath(id, directory string) string {
+	hash := sha256.Sum256([]byte(id + "\x00" + directory))
+	return filepath.Join(s.deviceDir, "group-catalogs", hex.EncodeToString(hash[:])+".json")
+}
 func (s *Server) loadGroupRegistry() (string, groupRegistry, uint64, error) {
 	gen := s.Vault.Generation()
 	b, err := s.Vault.Binding()
@@ -30,8 +34,7 @@ func (s *Server) loadGroupRegistry() (string, groupRegistry, uint64, error) {
 	if status.Format < 3 {
 		return "", groupRegistry{}, gen, vault.ErrGroupUpgrade
 	}
-	hash := sha256.Sum256([]byte(b.VaultID + "\x00" + status.Directory))
-	path := filepath.Join(s.deviceDir, "group-catalogs", hex.EncodeToString(hash[:])+".json")
+	path := s.groupRegistryPath(b.VaultID, status.Directory)
 	reg := groupRegistry{Names: []string{}}
 	raw, err := fsutil.ReadBounded(path, 256<<10)
 	if os.IsNotExist(err) {

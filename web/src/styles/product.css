@@ -20,6 +20,17 @@ fieldset {
 .sidebar .list-results {
   padding-inline: 0;
 }
+.vault-picker-row .single-vault-label {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+.single-vault-label > .count {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
 .sidebar-session-actions {
   display: contents;
 }

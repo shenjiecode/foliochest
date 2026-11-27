@@ -10,6 +10,7 @@ import (
 
 	"github.com/shenjiecode/keyfolio/internal/fsutil"
 	"github.com/shenjiecode/keyfolio/internal/platform"
+	"github.com/shenjiecode/keyfolio/internal/vault"
 )
 
 func rememberedLocation(directory, device string) bool {
@@ -42,6 +43,9 @@ func (s *Server) saveLocation(directory string) error {
 	return fsutil.WriteFile(filepath.Join(s.deviceDir, "location.json"), raw)
 }
 func (s *Server) createVault(directory, password string, session *webSession) error {
+	if s.hasBoundVault() {
+		return errSingleVault
+	}
 	if !s.Vault.Locked() && !s.authorized(session) {
 		return errors.New("请先解锁当前网页会话")
 	}
@@ -88,8 +92,13 @@ func (s *Server) selectVault(w http.ResponseWriter, r *http.Request, session *we
 		apiError(w, errors.New("请先解锁当前网页会话"), 401)
 		return
 	}
+	if s.Vault.Status().Exists || (s.hasBoundVault() && s.boundID() == "") {
+		apiError(w, errSingleVault, 409)
+		return
+	}
 	var in struct {
 		Directory string `json:"directory"`
+		Password  string `json:"password"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -106,15 +115,33 @@ func (s *Server) selectVault(w http.ResponseWriter, r *http.Request, session *we
 		apiError(w, errors.New("所选目录没有可读取的资料库，请检查位置、权限或同步状态"), 400)
 		return
 	}
-	if err := s.saveLocation(in.Directory); err != nil {
-		apiError(w, err, 500)
-		return
-	}
-	if err := s.Vault.SelectDirectory(in.Directory); err != nil {
+	candidate := vault.New(in.Directory)
+	if err := candidate.Unlock(in.Password); err != nil {
 		apiError(w, err, 400)
 		return
 	}
-	s.knownVault.Store(true)
-	s.Access.Sweep()
+	b, err := candidate.Binding()
+	candidate.Lock()
+	if err != nil {
+		apiError(w, err, 400)
+		return
+	}
+	if err = s.activateSingleVault(w, r, in.Directory, b.VaultID, s.Vault.Generation()); err != nil {
+		apiError(w, err, 409)
+		return
+	}
+	if err := s.unlockPassword(in.Password); err != nil {
+		apiError(w, err, 400)
+		return
+	}
+	s.mu.Lock()
+	if cookie, e := r.Cookie("kf_session"); e == nil {
+		if ss, ok := s.sessions[cookie.Value]; ok {
+			ss.Authenticated = true
+			ss.Generation = s.Vault.Generation()
+		}
+	}
+	s.mu.Unlock()
+	s.activity()
 	writeJSON(w, map[string]bool{"ok": true})
 }

@@ -15,6 +15,7 @@ export function setupDOM() {
   };
   for (const key of [
     "window",
+    "Window",
     "document",
     "navigator",
     "location",
