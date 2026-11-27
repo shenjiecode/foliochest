@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import { useConfirm } from "@/components/forms";
 import { useTask } from "@/lib/hooks";
 
-export const ExitContext = createContext<() => void>(() => {});
+export const ExitContext = createContext<(message?: string) => void>(() => {});
 export function useQuit() {
   const confirm = useConfirm();
   const task = useTask();
@@ -21,7 +21,7 @@ export function useQuit() {
       return;
     await task.run(
       (ctx) => ctx.request("/api/app/quit", { confirmed: true }),
-      exited,
+      () => exited(),
     );
   };
   return { quit, busy: task.busy, error: task.error };

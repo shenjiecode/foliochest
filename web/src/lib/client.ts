@@ -25,6 +25,16 @@ export class SessionClient {
   private snapshot: Snapshot = { state: null, epoch: 0, error: "", notice: "" };
   private listeners = new Set<() => void>();
   private states = new Sequence();
+  private refreshPauses = 0;
+  // A controlled shutdown must not lose its response to a concurrent lock-state poll.
+  pauseRefresh() {
+    this.refreshPauses++;
+    this.states.next();
+    let resumed = false;
+    return () => {
+      if (!resumed) { this.refreshPauses--; resumed = true; }
+    };
+  }
   constructor(private transport: typeof fetch = (...args) => fetch(...args)) {}
   getSnapshot = () => this.snapshot;
   subscribe = (listener: () => void) => {
@@ -58,6 +68,7 @@ export class SessionClient {
     });
   }
   async refresh(notice?: string): Promise<void> {
+    if (this.refreshPauses > 0) return;
     const ticket = this.states.next(),
       epoch = this.epoch;
     try {

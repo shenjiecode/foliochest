@@ -7,11 +7,13 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/buildinfo"
+	"github.com/shenjiecode/keyfolio/internal/updater"
 )
 
 const releaseAPI = "https://api.github.com/repos/shenjiecode/foliochest/releases/latest"
@@ -20,9 +22,12 @@ const releasesPage = "https://github.com/shenjiecode/foliochest/releases/latest"
 var releaseVersion = regexp.MustCompile(`^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(dev|alpha\.(?:0|[1-9][0-9]*)|beta\.(?:0|[1-9][0-9]*)|rc\.(?:0|[1-9][0-9]*)))?$`)
 
 type updateResult struct {
-	Latest string `json:"latest"`
-	Status string `json:"status"`
-	URL    string `json:"url"`
+	Latest    string `json:"latest"`
+	Status    string `json:"status"`
+	URL       string `json:"url"`
+	Installer string `json:"installer,omitempty"`
+	Size      int64  `json:"size,omitempty"`
+	Notes     string `json:"notes,omitempty"`
 }
 
 // Compare only our documented release versions; unknown builds are never called current.
@@ -82,6 +87,11 @@ func latestRelease(ctx context.Context, client *http.Client, current string) (up
 		Tag        string `json:"tag_name"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
+		Body       string `json:"body"`
+		Assets     []struct {
+			Name string `json:"name"`
+			Size int64  `json:"size"`
+		} `json:"assets"`
 	}
 	if json.Unmarshal(raw, &release) != nil {
 		return updateResult{}, errors.New("GitHub 返回了无效的版本信息")
@@ -90,7 +100,23 @@ func latestRelease(ctx context.Context, client *http.Client, current string) (up
 	if version == nil || version[4] != "" || release.Draft || release.Prerelease {
 		return updateResult{}, errors.New("GitHub 返回的不是有效正式版本")
 	}
-	return updateResult{Latest: strings.TrimPrefix(release.Tag, "v"), Status: updateStatus(current, release.Tag), URL: "https://github.com/shenjiecode/foliochest/releases/tag/" + release.Tag}, nil
+	result := updateResult{Latest: strings.TrimPrefix(release.Tag, "v"), Status: updateStatus(current, release.Tag), URL: "https://github.com/shenjiecode/foliochest/releases/tag/" + release.Tag}
+	notes := []rune(release.Body)
+	if len(notes) > 6000 {
+		notes = notes[:6000]
+	}
+	result.Notes = string(notes)
+	name, e := updater.Filename(result.Latest, runtime.GOOS, runtime.GOARCH, installerKind())
+	if e == nil {
+		for _, asset := range release.Assets {
+			if asset.Name == name && asset.Size > 0 && asset.Size <= updater.MaxPackageBytes {
+				result.Installer = name
+				result.Size = asset.Size
+				break
+			}
+		}
+	}
+	return result, nil
 }
 
 func (s *Server) checkUpdate(w http.ResponseWriter, r *http.Request) {

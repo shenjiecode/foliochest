@@ -17,11 +17,19 @@ import (
 	"github.com/shenjiecode/keyfolio/internal/buildinfo"
 	"github.com/shenjiecode/keyfolio/internal/platform"
 	"github.com/shenjiecode/keyfolio/internal/server"
+	"github.com/shenjiecode/keyfolio/internal/updater"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 	"github.com/shenjiecode/keyfolio/web"
 )
 
 func Run() {
+	if len(os.Args) == 3 && os.Args[1] == "internal-install-update" {
+		if err := runUpdateHelper(os.Args[2]); err != nil {
+			reportUpdateFailure(err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "mcp" {
 		if err := runStdio(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -107,6 +115,7 @@ func run() error {
 	}
 	defer app.CloseStdioBridge()
 	app.Shutdown = stop
+	app.InstallUpdate = func(pkg updater.Package) error { return prepareUpdate(*device, pkg) }
 	srv := &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 << 10}
 	app.StartSystemMonitor(ctx)
 	app.TryAutoUnlock(ctx)

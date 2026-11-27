@@ -78,6 +78,12 @@ HTTP example with `pi` (after enabling HTTP and exporting `FOLIOCHEST_TOKEN`):
 pi mcp add foliochest --url http://127.0.0.1:7463/mcp --bearer-token-env-var FOLIOCHEST_TOKEN
 ```
 
+## Updating an Installed Application
+
+In **Settings → Vault**, check for updates, explicitly download and verify the matching installer, then confirm **Exit and update**. Windows opens the setup wizard; Linux prefers GNOME Software / KDE Discover, falling back to the default file association. If no package installer is configured, install the downloaded RPM/DEB manually. Same-architecture upgrades do not require uninstalling; vaults and device settings are retained.
+
+Save edits, export a backup and pause other-device writes first. FolioChest locks the vault and disconnects MCP before exiting. After installation, start it again from the system app menu; update all synced devices. Packages are currently unsigned: SHA-256 verifies integrity, not publisher identity. Verified packages and helper diagnostics are retained under the device directory’s `updates/` for manual retry. No background checking, silent elevation/installation or automatic rollback is provided.
+
 ## Packaging & Cross-Compilation
 
 Build portable archives (`dist/`):

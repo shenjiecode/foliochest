@@ -37,10 +37,10 @@ import { Settings } from "@/features/settings";
 import { ApprovalNotice, Approvals } from "@/features/approvals";
 
 export function App({ client }: { client: SessionClient }) {
-  const [exited, setExited] = useState(false);
+  const [exited, setExited] = useState<string | null>(null);
   return (
     <ClientContext value={client}>
-      <ExitContext value={() => setExited(true)}>
+      <ExitContext value={(message) => setExited(message || "可以关闭此页面。下次点击应用图标重新启动。")}>
         {exited ? (
           <main className="lock-screen">
             <header className="lock-topbar">
@@ -48,7 +48,7 @@ export function App({ client }: { client: SessionClient }) {
             </header>
             <div className="lock-center">
               <h1>资料匣已退出</h1>
-              <p>可以关闭此页面。下次点击应用图标重新启动。</p>
+              <p className="path-value">{exited}</p>
             </div>
           </main>
         ) : (

@@ -16,6 +16,7 @@ import (
 	"github.com/shenjiecode/keyfolio/internal/access"
 	"github.com/shenjiecode/keyfolio/internal/buildinfo"
 	"github.com/shenjiecode/keyfolio/internal/platform"
+	"github.com/shenjiecode/keyfolio/internal/updater"
 	"github.com/shenjiecode/keyfolio/internal/vault"
 )
 
@@ -29,6 +30,8 @@ type Server struct {
 	// Set by the application before serving.
 	LauncherToken   string
 	Shutdown        func()
+	InstallUpdate   func(updater.Package) error
+	preparedUpdate  *preparedUpdate
 	Vault           *vault.Vault
 	Access          *access.Service
 	baseURL         string
@@ -284,6 +287,14 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request, create bool) (s
 	return id, &copySession
 }
 func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/api/app/download-update" {
+		s.downloadUpdate(w, r)
+		return
+	}
+	if r.URL.Path == "/api/app/install-update" {
+		s.installUpdate(w, r)
+		return
+	}
 	if r.URL.Path == "/api/mcp/settings" {
 		s.mcpSettings(w, r)
 		return

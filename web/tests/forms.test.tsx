@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { ClientContext } from "../src/lib/hooks";
 import { SessionClient } from "../src/lib/client";
 import { ConfirmProvider } from "../src/components/forms";
+import { ExitContext } from "../src/components/exit-app";
 import { DeviceSettings } from "../src/features/settings-device";
 import { Settings } from "../src/features/settings";
 import { UpdateSettings } from "../src/features/settings-update";
@@ -135,6 +136,49 @@ try {
   await click(find("检查更新"));
   assert.ok(document.body.textContent?.includes("GitHub 请求受限"));
   assert.equal(document.querySelector("a")?.getAttribute("href"), "https://github.com/shenjiecode/foliochest/releases/latest");
+  // Download and installer handoff each require a separate human confirmation.
+  let downloads = 0, installs = 0, exitMessage = "";
+  const guidedClient = new SessionClient(async (path, options) => {
+    if (path === "/api/state") return json(state);
+    const body = JSON.parse(String(options?.body));
+    assert.equal(body.confirmed, true);
+    if (path === "/api/app/check-update") return json({ latest: "0.6.3", status: "available", url: "https://github.com/shenjiecode/foliochest/releases/tag/v0.6.3", installer: "synthetic.rpm", size: 1024, notes: "Synthetic release notes" });
+    if (path === "/api/app/download-update") {
+      downloads++;
+      assert.equal(body.version, "0.6.3");
+      return json({ id: "synthetic-ready", version: "0.6.3", name: "synthetic.rpm", size: 1024, path: "/synthetic/update.rpm" });
+    }
+    if (path === "/api/app/install-update") {
+      installs++;
+      assert.equal(body.id, "synthetic-ready");
+      return json({ ok: true });
+    }
+    throw new Error("Unexpected update route " + path);
+  });
+  await guidedClient.refresh();
+  await act(async () => root.render(
+    <ClientContext value={guidedClient}><ConfirmProvider><ExitContext value={(message) => { exitMessage = message || ""; }}><UpdateSettings key="guided" version="0.6.2" /></ExitContext></ConfirmProvider></ClientContext>,
+  ));
+  assert.equal(downloads, 0);
+  await click(find("检查更新"));
+  await click(find("下载安装包"));
+  await click(find("取消"));
+  assert.equal(downloads, 0);
+  await click(find("下载安装包"));
+  await click(find("下载并校验"));
+  assert.equal(downloads, 1);
+  assert.equal(installs, 0);
+  assert.ok(document.body.textContent?.includes("SHA-256 校验通过"));
+  await click(find("退出并更新"));
+  await click(find("取消"));
+  assert.equal(installs, 0);
+  await click(find("退出并更新"));
+  // The confirmation and underlying trigger share a label; choose the dialog action.
+  const installerConfirmation = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((b) => b.textContent?.trim() === "退出并更新")!;
+  await click(installerConfirmation);
+  assert.equal(installs, 1);
+  assert.ok(exitMessage.includes("不代表安装已完成"));
+  assert.ok(exitMessage.includes("/synthetic/update.rpm"));
   // Default stdio does not fetch or expose HTTP credentials.
   let modeBody: any;
   const modeClient = new SessionClient(async (path, options) => {
