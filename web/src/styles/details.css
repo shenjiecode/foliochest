@@ -1,0 +1,202 @@
+/* Reference-led settings rows and attachment surfaces. */
+.search-options {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+}
+.search-options[data-state="open"] {
+  background: var(--accent);
+  color: var(--primary);
+}
+.search-options[data-active="true"] {
+  width: auto;
+  padding-inline: 8px;
+  gap: 5px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+}
+.search-options[data-active="true"]:hover {
+  background: color-mix(in srgb, var(--primary) 88%, black);
+}
+.search-box[data-body-search="true"] > input {
+  padding-right: 80px;
+}
+.search-options-menu {
+  width: 310px;
+  max-width: calc(100vw - 24px);
+}
+.search-body-option {
+  padding-block: 12px;
+  gap: 12px;
+}
+.search-body-option > span:first-child {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--input);
+  border-radius: 3px;
+}
+.search-body-option[data-state="checked"] {
+  background: var(--accent);
+}
+.search-body-option[data-state="checked"] > span:first-child {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.search-option-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.search-option-copy > span {
+  font-weight: 500;
+}
+.search-option-copy small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.search-option-state {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.search-body-option[data-state="checked"] .search-option-state {
+  color: var(--primary);
+}
+
+.setting-icon {
+  width: 28px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 3px;
+  color: var(--foreground);
+}
+.setting-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.6;
+}
+.setting-copy {
+  flex: 1;
+  min-width: 0;
+}
+.setting-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.setting-state {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.device-settings .setting-row {
+  border-bottom: 0;
+  padding: 22px 0;
+}
+.device-settings .section-action {
+  margin-top: 8px;
+}
+.device-settings > form + form {
+  margin-top: 20px;
+}
+.device-settings .field-grid {
+  max-width: 720px;
+}
+.attachment-dropzone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 12px;
+  margin-top: 10px;
+  border: 1px dashed var(--input);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.attachment-dropzone svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.attachment-dropzone input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.attachment-dropzone:hover {
+  background: var(--secondary);
+}
+.attachment-dropzone:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.attachment-dropzone:has(input:disabled) {
+  opacity: 0.5;
+}
+.attachment-limits {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.entry-document .attachment-row {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 10px 12px;
+  margin-top: 6px;
+}
+.attachment-drag-overlay {
+  position: absolute;
+  z-index: 40;
+  inset: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 2px dashed var(--primary);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background) 96%, transparent);
+  color: var(--primary);
+  pointer-events: none;
+}
+.attachment-drag-overlay > svg {
+  width: 36px;
+  height: 36px;
+}
+.attachment-drag-overlay > span {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+@media (max-width: 680px) {
+  .setting-row {
+    gap: 12px;
+  }
+  .setting-control {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .setting-copy {
+    flex-basis: calc(100% - 44px);
+  }
+  .setting-icon + .setting-copy + .setting-control {
+    margin-left: 40px;
+  }
+  .settings-tabs > [data-slot="tabs-list"] {
+    gap: 18px;
+  }
+  .entry-body {
+    flex-basis: 360px;
+  }
+}

@@ -138,7 +138,7 @@ export function GroupManagement({
       async (ctx) => {
         if (format < 3) throw new Error("分组需要格式 3");
         const entries = reviewed?.members || selection;
-        if (!entries.length || entries.length > 20)
+        if ((!reviewed && !entries.length) || entries.length > 20)
           throw new Error("每次可管理 1–20 条，请手动分批移动");
         if (reviewed?.blocked) throw new Error("组内有冲突或缺失，请先处理");
         const next = remove ? "" : target;

@@ -1,4 +1,6 @@
-import { Download, File, Plus, Trash2 } from "lucide-react";
+import { useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Download, File, Plus, Trash2, UploadCloud, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, IconButton } from "@/components/common";
@@ -29,10 +31,6 @@ export function Properties({
 }) {
   return (
     <section className="property-card" aria-label="资料属性">
-      <header className="property-card-heading">
-        <h3>属性</h3>
-        <p>Key、描述和分组为明文，请勿填写秘密。</p>
-      </header>
       <div className="property-fields">
         <div className="property-key">
           <Field id="entry-key" label="Key">
@@ -69,21 +67,29 @@ export function Properties({
             />
           </Field>
         </div>
-        {(["read_policy", "write_policy"] as const).map((field, i) => (
-          <div className="property-policy" key={field}>
-            <ChoiceField
-              id={field}
-              label={i === 0 ? "AI 读取正文与附件" : "AI 修改内容"}
-              value={entry[field]}
-              disabled={!editable}
-              options={Object.entries(policyLabels).map(([value, label]) => ({
-                value: value as Policy,
-                label,
-              }))}
-              onChange={(value) => onChange({ [field]: value })}
-            />
-          </div>
-        ))}
+        <div className="property-policies">
+          {(["read_policy", "write_policy"] as const).map((field, i) => (
+            <div className="property-policy" key={field}>
+              <ChoiceField
+                id={field}
+                label={i === 0 ? "AI读取权限" : "AI修改权限"}
+                value={entry[field]}
+                disabled={!editable}
+                options={Object.entries(policyLabels).map(([value, label]) => ({
+                  value: value as Policy,
+                  label,
+                }))}
+                onChange={(value) => onChange({ [field]: value })}
+              />
+            </div>
+          ))}
+          <IconButton
+            type="button"
+            label="Key、描述和分组为明文，请勿填写秘密。"
+          >
+            <Info />
+          </IconButton>
+        </div>
       </div>
     </section>
   );
@@ -101,29 +107,25 @@ export function Attachments({
   onAdd?: (files: File[]) => void;
   onRemove?: (index: number) => void;
 }) {
+  const input = useRef<HTMLInputElement>(null);
   return (
     <div className="attachments-panel">
       <div className="attachment-heading">
         <h3>附件 · {files.length}</h3>
         {editable && (
-          <label className="upload-control">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => input.current?.click()}
+          >
             <Plus />
-            <span>添加附件</span>
-            <input
-              aria-label="添加附件"
-              type="file"
-              multiple
-              disabled={busy}
-              onChange={(e) => {
-                const items = [...(e.target.files || [])];
-                e.target.value = "";
-                onAdd?.(items);
-              }}
-            />
-          </label>
+            添加附件
+          </Button>
         )}
       </div>
-      {!files.length && <p className="field-note">没有附件</p>}
+      {!files.length && !editable && <p className="field-note">没有附件</p>}
       {files.map((file, i) => (
         <div className="attachment-row" key={file.name}>
           <File />
@@ -151,9 +153,29 @@ export function Attachments({
         </div>
       ))}
       {editable && (
-        <p className="field-note">
-          每个最多 2 MiB，每条最多 16 个。下载内容为明文，请保存在可信位置。
-        </p>
+        <>
+          <label className="attachment-dropzone">
+            <UploadCloud />
+            <span>
+              {busy ? "正在处理附件…" : "点击选择文件，或拖拽文件到编辑区"}
+            </span>
+            <input
+              ref={input}
+              aria-label="添加附件"
+              type="file"
+              multiple
+              disabled={busy}
+              onChange={(e) => {
+                const items = [...(e.target.files || [])];
+                e.target.value = "";
+                onAdd?.(items);
+              }}
+            />
+          </label>
+          <p className="attachment-limits">
+            每个最多 2 MiB，每条最多 16 个；添加后需保存。下载文件为明文。
+          </p>
+        </>
       )}
     </div>
   );

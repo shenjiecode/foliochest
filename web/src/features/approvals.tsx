@@ -33,7 +33,7 @@ export function Approvals({
   onBack: () => void;
 }) {
   return (
-    <section className="approvals-view scroll-region">
+    <section className="approvals-view scroll-region" aria-label="授权请求">
       <header className="page-heading">
         <h1>授权请求</h1>
         <p className="field-note">通常在 AI 客户端确认，此处可备用处理。</p>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
+import { EditorView } from "@codemirror/view";
 import { setNonce } from "get-nonce";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { ConfirmProvider } from "../src/components/forms";
@@ -130,6 +131,21 @@ async function fill(selector: string, value: string) {
     node.dispatchEvent(new Event("change", { bubbles: true }));
   });
 }
+function bodyEditor(): EditorView | null {
+  const node = document.querySelector<HTMLElement>(
+    '.cm-content[aria-label="正文"]',
+  );
+  return node ? EditorView.findFromDOM(node) : null;
+}
+async function fillBody(value: string) {
+  const editor = bodyEditor();
+  assert.ok(editor, "Missing body CodeMirror editor");
+  await act(async () => {
+    editor.dispatch({
+      changes: { from: 0, to: editor.state.doc.length, insert: value },
+    });
+  });
+}
 async function submit(selector: string) {
   await act(async () => {
     document
@@ -161,7 +177,7 @@ try {
   await click(first);
   assert.ok(text().includes(entry.value));
   await click(button("编辑"));
-  await fill('textarea[aria-label="正文"]', "SYNTHETIC_UNSAVED_DRAFT");
+  await fillBody("SYNTHETIC_UNSAVED_DRAFT");
   docs.set(entry.key, {
     ...entry,
     revision: "f".repeat(32),
@@ -169,8 +185,7 @@ try {
   });
   await tick();
   assert.equal(
-    document.querySelector<HTMLTextAreaElement>('textarea[aria-label="正文"]')
-      ?.value,
+    bodyEditor()?.state.doc.toString(),
     "SYNTHETIC_UNSAVED_DRAFT",
   );
   assert.ok(text().includes("未保存的草稿已保留"));
@@ -194,13 +209,12 @@ try {
   assert.ok(text().includes("放弃未保存的修改"));
   await click(button("取消", document.querySelector('[role="dialog"]')!));
   assert.equal(
-    document.querySelector<HTMLTextAreaElement>('textarea[aria-label="正文"]')
-      ?.value,
+    bodyEditor()?.state.doc.toString(),
     "SYNTHETIC_UNSAVED_DRAFT",
   );
   await click(button("设置"));
   await click(button("放弃修改"));
-  assert.equal(document.querySelector('textarea[aria-label="正文"]'), null);
+  assert.equal(bodyEditor(), null);
   await click(button("MCP"));
   await fill("#client-name", "Synthetic harness");
   await submit(
@@ -221,14 +235,11 @@ try {
     )!,
   );
   await click(button("编辑"));
-  const attachmentTab = [
-    ...document.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
-  ].find((b) => b.textContent?.startsWith("附件"))!;
-  await click(attachmentTab);
   const bytes = Uint8Array.of(1, 2, 3),
     fileRead = deferred<ArrayBuffer>();
   const upload =
     document.querySelector<HTMLInputElement>('input[type="file"]')!;
+  assert.ok(upload, "Missing inline attachment upload");
   Object.defineProperty(upload, "files", {
     configurable: true,
     value: [
@@ -274,10 +285,10 @@ try {
   assert.ok(!text().includes("STALE_ENTRY_MUST_NOT_RENDER"));
   // CSRF renewal clears an authenticated surface too, not just logout.
   await click(button("编辑"));
-  await fill('textarea[aria-label="正文"]', "DRAFT_BEFORE_CSRF_RENEWAL");
+  await fillBody("DRAFT_BEFORE_CSRF_RENEWAL");
   server = { ...server, csrf: "renewed-csrf" };
   await act(async () => client.refresh());
-  assert.equal(document.querySelector('textarea[aria-label="正文"]'), null);
+  assert.equal(bodyEditor(), null);
   assert.ok(!text().includes("DRAFT_BEFORE_CSRF_RENEWAL"));
 } finally {
   await act(async () => root.unmount());

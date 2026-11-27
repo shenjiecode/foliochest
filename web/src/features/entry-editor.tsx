@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import {
   ArrowLeft,
   History,
@@ -6,6 +6,7 @@ import {
   Pencil,
   ShieldCheck,
   FileText,
+  UploadCloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ export function EntryEditor({
   onManage,
   onHistory,
   onBack,
+  onCancel,
 }: {
   entryKey: string | null;
   summary?: Summary;
@@ -55,6 +57,7 @@ export function EntryEditor({
   onManage: (kind: "rename" | "delete", entry: Entry) => void;
   onHistory: () => void;
   onBack: () => void;
+  onCancel: () => void;
 }) {
   const isNew = entryKey === null,
     client = useClient(),
@@ -78,6 +81,8 @@ export function EntryEditor({
         }
       : null,
   );
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const [editing, setEditing] = useState(isNew),
     [loading, setLoading] = useState(!isNew),
     [loadError, setLoadError] = useState(""),
@@ -169,9 +174,57 @@ export function EntryEditor({
     !!summary &&
     (summary.state !== "ready" || summary.revision !== draft.revision);
   const unavailable = summary && summary.state !== "ready" && !dirty.current;
+  const canAdd = !!draft && editing && !unavailable && !loading && !task.busy;
+  const addFiles = (files: File[]) => {
+    if (!canAdd || !draft || !files.length) return;
+    void task.run(
+      (ctx) => addAttachments(draft.attachments || [], files, ctx.assert),
+      (attachments) => update({ attachments }),
+    );
+  };
+  const isFileDrag = (event: DragEvent) =>
+    Array.from(event.dataTransfer.types).includes("Files");
   return (
     <form
       className="entry-panel"
+      aria-label={isNew ? "新建资料" : entryKey}
+      onDragEnterCapture={(e) => {
+        if (!isFileDrag(e)) return;
+        e.preventDefault();
+        dragDepth.current++;
+        setDragging(true);
+      }}
+      onDragOverCapture={(e) => {
+        if (!isFileDrag(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = canAdd ? "copy" : "none";
+      }}
+      onDragLeaveCapture={(e) => {
+        if (!isFileDrag(e)) return;
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (!dragDepth.current) setDragging(false);
+      }}
+      onDropCapture={(e) => {
+        if (!isFileDrag(e) && !e.dataTransfer.files.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragDepth.current = 0;
+        setDragging(false);
+        if (!canAdd) {
+          client.notice("请进入编辑状态并等待当前操作完成后添加附件。");
+          return;
+        }
+        if (
+          Array.from(e.dataTransfer.items).some(
+            (item) => item.webkitGetAsEntry?.()?.isDirectory,
+          )
+        ) {
+          client.notice("请拖入文件，不支持拖入文件夹。");
+          return;
+        }
+        addFiles(Array.from(e.dataTransfer.files));
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         if (editing && !loading && !task.busy) void save();
@@ -183,6 +236,15 @@ export function EntryEditor({
         }
       }}
     >
+      {dragging && (
+        <div className="attachment-drag-overlay" role="status">
+          <UploadCloud />
+          <strong>
+            {canAdd ? "松开以添加附件" : "请先进入编辑状态或等待当前操作完成"}
+          </strong>
+          <span>文件加入草稿，保存后写入资料库</span>
+        </div>
+      )}
       <header className="entry-heading">
         <IconButton
           className="back-to-list"
@@ -192,9 +254,7 @@ export function EntryEditor({
         >
           <ArrowLeft />
         </IconButton>
-        <div className="entry-heading-copy">
-          <h2>{isNew ? "新建资料" : entryKey}</h2>
-        </div>
+        <h1 className="entry-title">{isNew ? "新建资料" : entryKey}</h1>
         {!isNew && (
           <div className="heading-actions">
             <IconButton
@@ -240,9 +300,14 @@ export function EntryEditor({
           <div className="editor-actions">
             {editing ? (
               <>
-                <span className="draft-label">
-                  {dirty.current ? "未保存" : "编辑中"}
-                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={task.busy || loading}
+                  onClick={onCancel}
+                >
+                  取消
+                </Button>
                 <Button type="submit" disabled={task.busy || loading}>
                   {task.busy ? "处理中…" : "保存"}
                 </Button>
@@ -343,14 +408,8 @@ export function EntryEditor({
             <Attachments
               files={draft.attachments || []}
               editable={editing}
-              busy={task.busy}
-              onAdd={(files) =>
-                void task.run(
-                  (ctx) =>
-                    addAttachments(draft.attachments || [], files, ctx.assert),
-                  (attachments) => update({ attachments }),
-                )
-              }
+              busy={task.busy || loading}
+              onAdd={addFiles}
               onRemove={(i) =>
                 update({
                   attachments: (draft.attachments || []).filter(

@@ -32,7 +32,12 @@ jobs:
         run: |
           npm --prefix web ci --no-audit --no-fund
           npm --prefix web run build
-      - name: Cross-build portable packages (no regression or runtime tests)
+      - name: Run web and Go checks
+        run: |
+          npm --prefix web test
+          go vet ./...
+          go test -race ./...
+      - name: Cross-build portable packages
         run: go run ./tools/package -windows-x86
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

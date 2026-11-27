@@ -32,3 +32,14 @@ execFileSync(
   { cwd: web, stdio: "inherit" },
 );
 await copyFile(resolve(web, "index.html"), resolve(out, "index.html"));
+for (const [source, target] of [
+  ["logo.png", "logo.png"],
+  ["foliochest.ico", "favicon.ico"],
+  ["favicon-32.png", "favicon-32.png"],
+  ["apple-touch-icon.png", "apple-touch-icon.png"],
+]) {
+  await copyFile(
+    resolve(web, "../packaging/assets", source),
+    resolve(out, target),
+  );
+}

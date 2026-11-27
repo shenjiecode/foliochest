@@ -129,7 +129,7 @@ func WatchSystem(ctx context.Context, emit func(SystemEvent)) {
 				next.Lock = true
 				next.Reason = "系统锁屏、会话断开或退出"
 				notify(next)
-			case 1, 3, 5, 8: // reconnect/logon/unlock never unlocks the vault
+			case 1, 3, 5, 8: // reconnect, logon, unlock
 				refresh(false, "")
 			}
 			return 0

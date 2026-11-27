@@ -6,6 +6,14 @@ import (
 	"sort"
 )
 
+// ValidateGroupName validates a non-empty named group without changing records.
+func ValidateGroupName(name string) error {
+	if name == "" {
+		return errors.New("请输入分组名称")
+	}
+	return validateGroup(name)
+}
+
 type GroupMember struct {
 	Key              string `json:"key"`
 	ExpectedRevision string `json:"expected_revision"`

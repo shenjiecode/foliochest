@@ -3,6 +3,7 @@
 @import "./workspace.css";
 @import "./flows.css";
 @import "./product.css";
+@import "./details.css";
 @source "../components";
 @source "../features";
 @source "../app.tsx";
@@ -10,29 +11,29 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #202924;
+  --foreground: #24212b;
   --card: #ffffff;
-  --card-foreground: #202924;
+  --card-foreground: #24212b;
   --popover: #ffffff;
-  --popover-foreground: #202924;
-  --primary: #24564a;
+  --popover-foreground: #24212b;
+  --primary: #6941c6;
   --primary-foreground: #ffffff;
-  --secondary: #eaf0eb;
-  --secondary-foreground: #24564a;
-  --muted: #f4f5f2;
-  --muted-foreground: #65726a;
-  --accent: #eaf0eb;
-  --accent-foreground: #24564a;
-  --destructive: #9c3e36;
-  --border: #dce2dc;
-  --input: #dce2dc;
-  --ring: #24564a;
+  --secondary: #f5f2fb;
+  --secondary-foreground: #503194;
+  --muted: #fbfafc;
+  --muted-foreground: #67616e;
+  --accent: #f1ebfc;
+  --accent-foreground: #503194;
+  --destructive: #b42332;
+  --border: #e6e2ec;
+  --input: #8c8697;
+  --ring: #6941c6;
   --radius: 8px;
   --font-interface:
     "Noto Sans CJK SC", "Microsoft YaHei", "Segoe UI", sans-serif;
   --font-code: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --overlay: rgb(32 41 36 / 24%);
-  --elevation: 0 16px 48px rgb(32 41 36 / 12%);
+  --overlay: rgb(36 27 53 / 24%);
+  --elevation: 0 16px 48px rgb(36 27 53 / 12%);
 }
 @theme inline {
   --font-sans: var(--font-interface);

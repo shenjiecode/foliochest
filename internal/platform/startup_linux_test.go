@@ -33,16 +33,6 @@ func TestNativeAutostartIsolated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy := bytes.Replace(raw, []byte("\nName=FolioChest\n"), []byte("\nName=Keyfolio\n"), 1)
-	if err = os.WriteFile(startup.startupPath(), legacy, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if status, err := startup.Status(); err != nil || !status.Current || !status.Enabled {
-		t.Fatal("legacy display name orphaned", status, err)
-	}
-	if err = startup.Set(true); err != nil {
-		t.Fatal(err)
-	}
 	if bytes.Contains(raw, []byte("--vault")) || bytes.Contains(raw, []byte("password")) {
 		t.Fatal("sensitive/stale args")
 	}
@@ -66,7 +56,7 @@ func TestNativeAutostartIsolated(t *testing.T) {
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
-		expected := strings.Join([]string{"--device-dir", device, "--listen", "127.0.0.1:7463", ""}, "\x00")
+		expected := strings.Join([]string{"--background", "--device-dir", device, "--listen", "127.0.0.1:7463", ""}, "\x00")
 		if string(raw) != expected {
 			t.Fatalf("Exec arguments changed: %q vs %q", raw, expected)
 		}

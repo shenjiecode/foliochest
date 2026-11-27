@@ -1,63 +1,29 @@
+<p align="center">
+  <img src="packaging/assets/logo.png" alt="FolioChest / 资料匣" width="128" height="128" />
+</p>
+
 # FolioChest / 资料匣
 
-本地运行、通过网页管理、按 key 向 AI 授权的加密资料库。
+English | [简体中文](README.zh.md)
 
-key、description 和单层 group 保持明文，value 与附件加密。AI 优先读取这些元信息判断需要哪些条目，再通过 MCP 按权限读取或替换内容。用户通过网页管理资料库，坚果云等外部工具负责同步文件。
+A locally run encrypted vault managed via a browser UI, with per-key AI access control over MCP.
 
-**当前阶段：`0.6.1-dev` 可运行原型。React + shadcn/ui 网页已连接真实资料库；只有一套正式前端，不再提供示例页面或独立预览服务。Windows 等平台的真机验收和独立安全复核尚未完成，请先使用合成测试数据。**
+`key`, `description`, and an optional single-level `group` are stored in plaintext so AI agents can discover relevant entries first, while `value` and attachments are encrypted with AES-256-GCM. External tools (such as Nutstore/Syncthing) handle file sync; FolioChest handles encryption, versioning, conflict detection, and per-key permissions.
 
-## 文档
+> **Status (`0.6.1-dev`):** Working prototype. Windows runtime testing, native installer verification, and an independent security review have not been completed yet. Start with synthetic data and keep backups.
 
-- [项目设计](docs/DESIGN.md)：产品目标、已确认需求、使用流程、技术方向和实施顺序。
-- [边界与安全说明](docs/BOUNDARIES.md)：信任边界、授权约束、加密与恢复、外部文件变化的处理和验收要求。
-- [文件格式](docs/FORMAT.md)：当前原型的加密封装、版本记录和恢复依据。
-- [开发约定](AGENTS.md)：后续开发及 AI 协作需要遵守的约定。
+## Features
 
-## 已实现
+- **Local Web UI + Single Binary**: Go backend with an embedded React + TypeScript + shadcn/ui web app; no runtime Node.js or external CDN required.
+- **Plaintext Discovery, Encrypted Payloads**: Argon2id (`64 MiB`, 3 iterations) key derivation + AES-256-GCM encryption for bodies and attachments.
+- **Content & Organization**: Plaintext, Markdown (with safe preview, no HTML/remote image loading), JSON editing assistance, encrypted attachments, single-level groups, history browsing/restore, conflict merging, and soft-delete trash.
+- **Per-Key MCP Permissions**: Independent `allow` / `ask` / `deny` policies for read and replace per key, with client bearer tokens, session form elicitation, and fallback webpage approval.
+- **Backup & Recovery**: Full encrypted ZIP backup export and validated restore into a new/empty directory.
+- **Device Convenience & Locking**: Optional OS credential storage (Windows Credential Manager / Linux Secret Service), browser remember-me (90 days), user-level login autostart, idle auto-lock, and system lock/sleep event locking.
 
-- 手动启动自动打开默认浏览器，同一本机配置重复启动复用已有服务；网页提供锁定与退出。Windows/Linux 免安装包构建见下方。
-- 首次启动不预选资料库；系统文件夹选择、两步创建、打开、解锁、锁定，以及条目新增和编辑。
-- 单层 group、未分组、侧栏筛选及列表分组折叠；批量移动、组重命名和解除分组，保留 key、正文、附件与权限。
-- 格式 2 或更新下的 key 重命名、回收站、删除前版本恢复；保留条目身份、权限和全部历史，处理改名/删除与离线编辑冲突。
-- key + description + group 明文检索及精确分组筛选；网页支持解锁后的正文搜索，MCP 发现接口仍只检索元信息。
-- 纯文本、Markdown 编辑/预览、JSON 正文与附件；预览不执行 HTML、不加载外部图片。
-- Argon2id 派生解锁密钥，AES-256-GCM 保护库密钥和内容。
-- 每个 key 的读取/修改三态权限，默认均需确认。
-- MCP 元信息检索、按范围读取、批量替换、一次性领取审批结果。
-- 审批优先留在支持 form elicitation 的 harness；网页仅在有未处理请求时显示备用入口。
-- 客户端接入凭据的创建与撤销，本机只持久化凭据哈希。
-- 不可变批次文件、父版本关系、冲突检测、文件完整性检查和运行时重新扫描。
-- 保存前检查版本、保留历史文件；外部变化时保留编辑草稿。
-- 历史版本浏览、附件下载、恢复为新版本，以及同一条目并发分支的正文合并。
-- 完整资料库 ZIP 备份与新/空目录恢复，导入前检查密码、完整性和版本依赖。
-- 本机网页空闲自动锁定设置；轮询和 MCP 调用不会延长解锁时间。
-- 系统锁屏、会话切换/断开、休眠与恢复通知触发锁定；监测中断及超过 15 秒的进程停顿也会锁定。
-- Windows Credential Manager / Linux Secret Service 设备凭据适配；服务启动时可自动解锁，另行选择是否记住当前浏览器。
-- 用户级自启动：Windows 当前用户 Run 注册表项、Linux XDG Autostart；与自动解锁独立配置。
-- 网页变更主密码：验证当前密码、重新保护原库密钥、保留全部内容与历史，并锁定资料库。
+## Quick Start (From Source)
 
-## 待完成
-
-- Windows 系统事件适配真机验收、Fedora 实际锁屏/休眠与真实注销/登录后的自启动验收。
-- 不同条目同名冲突的处理、历史清理和跨版本附件合并。
-- 独立离线恢复 CLI、明文导出工具，以及完整的数据密钥轮换方案。
-- 2026-07-28 多轮交互审批与更多 harness 适配；pi 专用扩展尚未实现。
-- Windows 真机运行验证及正式发布前的安全复核。
-
-## 产品方向（完整目标）
-
-- Go 后端，React + TypeScript + shadcn/ui 网页；网页构建产物嵌入程序。
-- 首版支持 Windows 与 Fedora/Linux，按系统和架构分别发布。
-- 全部配置和日常使用在本地网页完成，无原生桌面 GUI。
-- 一个主密码；每台设备可选择开机启动和自动解锁。
-- 明文 key + description + group、加密 value、加密附件；value 支持 Markdown 等文本内容。
-- 每个 key 分别设置读取和修改策略：无须授权、需要授权、拒绝。
-- 多个 key 可以一次申请授权；审批优先嵌入 harness。
-- 外部同步由坚果云等工具负责，应用处理文件变化、版本和冲突。
-
-## 本地运行
-
-源码构建需要 Go 1.26+ 与 Node.js 24+。仓库指定 Go 1.26.11 工具链；前端由 TypeScript 检查、esbuild 与 Tailwind CSS 构建，Markdown 使用固定版本的 markdown-it。网页资源随程序分发，无 CDN 或运行时 Node.js 依赖。
+Requires **Go 1.26+** and **Node.js 24+**.
 
 ```bash
 npm --prefix web ci
@@ -65,200 +31,89 @@ npm --prefix web run build
 go run ./cmd/foliochest
 ```
 
-打开 http://127.0.0.1:7463/ 。在网页选择资料库目录，创建资料库或输入已有主密码解锁。
+Open `http://127.0.0.1:7463/` to create a new vault, open an existing directory, or restore from a backup.
 
-构建独立程序：
+Build a standalone binary:
 
 ```bash
 make build
 ./bin/foliochest
 ```
 
-可为开发测试指定独立设备目录，首次打开后自行选择合成资料的位置：
+For isolated development testing without touching your default config directory:
 
 ```bash
 ./bin/foliochest --device-dir "$PWD/.local/test-device"
 ```
 
-默认设备配置仍位于系统用户配置目录下的 `keyfolio/`。没有 `--vault`、已记住的位置或实际存在的旧默认目录时，程序保持“尚未选择资料库”，不创建或预填 `vault/`、`demo-vault`。可用 `--vault` 显式指定位置；已记住的位置丢失时保留路径并提示，不初始化空库。现有旧默认目录仍可打开，不搬动资料。本机接入凭据和会话不放入资料库目录。
+### CLI Flags
 
-`make build` 只生成 `bin/foliochest`。旧命令入口已移除；已有启动项若指向旧二进制，需要在新程序的设备设置中重新登记。现有目录、系统凭据命名空间、Cookie 与加密域不因品牌改名而搬动或更换，旧启动项仍可识别和停用。更换可执行文件路径后，需在网页重新保存启动项。GitHub 仓库已更名为 [shenjiecode/foliochest](https://github.com/shenjiecode/foliochest)。Go module 暂保留原 `github.com/shenjiecode/keyfolio` 路径，本地资料目录和加密标识不变，不自动修改 harness 配置。
+- `--device-dir`: Local device state directory (excluded from vault sync; defaults to `<UserConfigDir>/keyfolio`)
+- `--vault`: Vault directory path (can also be chosen in the web UI)
+- `--listen`: Loopback listen address (default `127.0.0.1:7463`)
+- `--background`: Start the background service without opening the browser
 
-## 免安装包与点击启动
+Closing the browser tab does not stop the background service; use the **Exit** button in the web UI.
 
-`make package` 会先构建网页，再生成以下文件到被 Git 忽略的 `dist/`：
+## MCP Integration
 
-- `foliochest-0.6.1-dev-windows-amd64.zip`
-- `foliochest-0.6.1-dev-linux-amd64.tar.gz`
-- `foliochest-0.6.1-dev-linux-arm64.tar.gz`
-- `SHA256SUMS-0.6.1-dev.txt`
+1. Unlock the vault in the web UI and open **Settings → MCP** to create a client token.
+2. Point your MCP client to `http://127.0.0.1:7463/mcp` with `Authorization: Bearer <token>`.
 
-每个包包含程序、图标、简短说明、MIT 许可证与收集的第三方许可文件。打包工具为 `tools/package/`，不会启动程序，不会读取或收录用户资料目录。这里只生成本地产物，不自动创建 GitHub Release。构建成功不代表真机验收。
-
-**Windows：**完整解压到固定目录，双击带图标的 `foliochest.exe`，自动打开默认浏览器，不显示控制台。启动失败显示错误对话框。当前未做代码签名，系统可能提示未知发布者。
-
-**Linux：**解压后执行 `./foliochest`。需要应用图标时，在解压目录运行 `sh install-shortcut.sh`，然后从应用菜单点击“资料匣”。脚本只添加当前用户的应用入口，不启用登录自启动；移除入口用 `sh install-shortcut.sh --remove`。移动解压目录后需重新登记入口。文件管理器能否直接双击二进制取决于桌面设置，不承诺所有桌面行为相同。
-
-启动需默认浏览器；Linux 使用 `xdg-open`。重复启动同一本机配置时，先校验运行实例身份，再打开其界面，不会因为端口被占用就打开不明服务。旧版本尚无启动锁，升级前请先退出旧程序。不同 `--device-dir` 仍需不同监听地址，不自动改端口。
-
-关闭网页不等于退出；通过网页“退出资料匣”锁定并停止后台，其他网页及 MCP 连接也会断开。解锁页同样提供退出按钮。只运行后台时使用 `--background`，新登记的登录自启动项会带此参数；已有旧自启动项需在设置中重新保存。
-
-免安装不代表所有状态写在程序旁边：本机配置仍在系统配置目录的 `keyfolio/`，资料库由用户选择。升级先保存、退出，再替换程序文件；删除解压目录不自动删除资料库。当前无托盘、独立桌面窗口或自动更新。安装向导与 Linux 系统包见下一节；macOS 暂不提供发行包。
-
-## 分支与自动发布
-
-日常开发在 `develop`，发布前直接合并到 `main`，当前不要求 PR 或审批。两条分支提交自动执行构建；推送 `vX.Y.Z` tag 后，GitHub Actions 校验提交属于 main，自动构建并发布安装包、免安装包和 SHA-256。`vX.Y.Z-rc.N` 等标签发布为预发布版本。程序版本、安装包版本和文件名由 tag 统一注入。
-
-不自动发 tag、不自动覆盖既有 Release；完整操作与失败处理见 [发布流程](docs/RELEASING.md)。当前 workflow 暂不运行回归，真机验收和签名仍未完成。
-
-## Windows/Linux 安装包
-
-使用现成工具：**NSIS 3.11** 生成 Windows 安装向导，**nFPM 2.49.0** 生成 DEB/RPM；工具仅供构建机使用。装好工具后运行 `make installers`，或按 [分发构建说明](packaging/README.md) 指定工具路径。
-
-| 系统/架构 | 产物（位于 dist/） |
+| Tool | Purpose |
 | --- | --- |
-| Windows x64 | `foliochest-0.6.1-dev-windows-amd64-setup.exe` |
-| Windows x86，32 位，实验性 | `foliochest-0.6.1-dev-windows-386-setup.exe` |
-| Debian/Ubuntu amd64、arm64 | `foliochest-0.6.1-dev-linux-{架构}.deb` |
-| Fedora 等 RPM 系统 amd64、arm64 | `foliochest-0.6.1-dev-linux-{架构}.rpm` |
+| `discover_entries` | Search plaintext `key`, `description`, and `group` (with optional exact `group` filter); never returns bodies |
+| `read_entries` | Request plaintext `value` or attachments for specific keys under per-key read policy |
+| `replace_entries` | Submit full replacements bound to `expected_revision` under per-key write policy |
+| `request_result` | Poll or claim the result of a pending/approved request once |
 
-Windows 双击安装器，安装到当前用户目录，提供开始菜单入口和可选桌面快捷方式；不要求管理员权限。安装不会自动启动后台或开启登录自启动。x64/x86 切换需先卸载旧版；卸载默认保留资料库和设备配置。
-
-Linux 使用 `sudo apt install ./文件.deb` 或 `sudo dnf install ./文件.rpm`，安装后从应用菜单打开“资料匣”。程序位于 `/usr/bin/foliochest`，不增加系统服务。升级/卸载前请退出资料匣并关闭登录自启动；包管理器不修改各用户的家目录或设备凭据。从免安装版迁移时，先移除旧的用户级应用入口。
-
-构建与包元数据检查已完成，**未做真机安装、升级、卸载验收**；x86 尤其不能仅凭交叉构建视为已支持。当前包未签名；本地构建不上传 Releases，只有推送符合规则的版本 tag 才触发自动发布。详见包内 `INSTALL.txt`。
-
-## 网页使用
-
-界面品牌为上方“资料匣”、下方“FolioChest”，网页标题为“资料匣 · FolioChest”。
-
-- 首次显示创建、打开、从备份恢复三个入口；有库时显示解锁，已选位置缺失时显示原路径和错误。创建先选新/空目录，再设置主密码；上一步或取消不切换当前库。
-- 目录旁的“选择文件夹”调用系统对话框，选中后只填写路径。Windows 使用内置对话框；Fedora/Linux 需要图形会话及 `zenity`（或 `qarma`、`matedialog`）。系统对话框不可用时明确提示，仍可手动输入绝对路径。恢复目录也使用同一选择器。
-- 左侧导航与资料列表合为一栏：分组标题下直接显示资料，可折叠/展开，保留搜索、批量移动和组管理；右侧是编辑区。新建资料默认未分组，已有分组不自动修改。未分组为空时也显示入口。窄窗口在资料树与详情之间切换，详情及设置仍可打开导航抽屉。
-- 条目详情依次显示顶部属性卡片、正文、附件，不再切换三个标签。Key 和分组同排，属性标题在左、输入与选项在右；窄窗口换行。正文格式选择放在编辑框上方，直接替代原“正文”标题；格式和 AI 权限使用无卡片边框的圆点单选。编辑/保存始终位于顶部。
-- JSON 编辑支持高亮、缩进、括号补全、语法错误标记和一键格式化；格式化仅调整空白，不舍入数字或合并重复键。Markdown 支持高亮、列表续行、标题/加粗/列表/链接/代码块插入和编辑时预览。纯文本仍用简单输入框，历史恢复共用编辑器。切换格式不转换正文，JSON 错误提示不改变原有保存规则。
-- 历史、重命名与删除通过条目标题旁的按钮打开。未保存的草稿在跳转前确认，外部版本变化不覆盖草稿。
-- 设置分为资料库、安全、设备、MCP；备份、密码、格式升级、设备授权和接入凭据均调用实际后端。
-- 来源：`web/src/app.tsx`、`web/src/features/`、`web/src/lib/`，共享组件位于 `web/src/components/`。构建只有 `web/src/main.tsx → web/dist/` 一条入口，随 Go 程序分发。
-- 页面不根据 URL 参数模拟解锁或审批，也不在浏览器持久保存资料或凭据。会话更新及锁定会清除正文、草稿、密码输入和一次性接入凭据。
-- 设计规则见 [网页界面](docs/DESIGN.md#14-网页界面)。严格 CSP 不允许 `unsafe-inline` 或 `unsafe-eval`；Radix 动态样式使用服务端每页随机 nonce。
-
-## 设备授权、自启动与主密码
-
-在“设置 → 设备”分别配置，默认均关闭；主密码在“安全”分区变更：
-
-- **登录系统后启动**：后台启动，不打开浏览器，也不代表自动解锁。先在固定位置运行构建好的程序；`go run` 临时程序不能注册。移动程序后重新保存启动项，后续网页切换资料库仍会生效。Linux 路径字符限制见 [自启动边界](docs/BOUNDARIES.md#24-自启动)。
-- **服务启动时自动解锁**：再次输入主密码后，把库密钥和绑定信息保存到系统凭据库，不保存主密码。每次进程启动只尝试一次；凭据不可用、配置变化或系统状态不允许时改用主密码。本次运行中，手动、空闲或系统事件锁定后不会自动重开。
-- **记住这个浏览器**：独立选择，有效期 90 天；目前每份本机配置只记住一个浏览器，新授权替换旧记忆。新浏览器仍需主密码，关闭此选项不结束已经认证的会话。
-- **关闭设备授权**：关闭自动解锁并清理系统凭据，清理失败时会提示重试。需要结束当前会话时，另行点击“锁定资料库”。
-- **变更主密码**：先备份并暂停其他设备写入。输入当前密码与两遍新密码；完成后撤销当前会话和审批，关闭本机自动解锁。其他设备收到新配置后需手动解锁、重新授权。
-
-Linux 需要已有且已解锁的 Secret Service `default` 或 `login` 凭据库，例如 GNOME Keyring；Windows 使用当前用户的本机凭据。程序不会代为解锁系统凭据库，也不回退到普通文件。启动页显示登记状态，不保证系统实际执行。
-
-**改主密码不等于撤销旧备份或已复制的库密钥。** 旧备份仍用旧密码，已复制的库密钥仍可能用于解密。凭据绑定、清理失败和启动锁定条件详见 [登录、设备与自动解锁](docs/BOUNDARIES.md#2-登录设备与自动解锁)。
-
-## MCP 接入
-
-1. 在网页解锁资料库。
-2. 打开“设置 → MCP”，为 harness 创建独立的接入凭据。
-3. 客户端连接 `http://127.0.0.1:7463/mcp`，携带 `Authorization: Bearer <接入凭据>`。
-4. AI 优先调用 `discover_entries` 获取 key、description、group 和版本，再选择所需内容。
-
-工具：
-
-| 工具 | 用途 |
-| --- | --- |
-| `discover_entries` | 检索公开的 key + description + group；可用 `group` 精确筛选，省略表示全部，空字符串表示未分组；不返回正文 |
-| `read_entries` | 按 key 申请正文、指定附件或全部附件 |
-| `replace_entries` | 按预期版本替换 value、description 或附件列表，不修改权限或 group |
-| `request_result` | 查询待审批状态，单次领取本客户端的执行结果 |
-
-支持会话式 form elicitation 的客户端可以展示确认框。其他客户端收到 `pending` 后，通过请求中的网页链接或顶栏授权提示处理，再调用 `request_result`；主密码不提供给 AI。网页与 harness 处理同一请求一次，不会重复执行。
-
-例如，在支持该配置的 pi 版本中，可由用户自行设置 `FOLIOCHEST_TOKEN` 环境变量后执行：
+Example with `pi` (after exporting `FOLIOCHEST_TOKEN`):
 
 ```bash
 pi mcp add foliochest --url http://127.0.0.1:7463/mcp --bearer-token-env-var FOLIOCHEST_TOKEN
 ```
 
-仓库不会自动修改你的 harness 配置。实际 pi 确认 UI 的端到端接入尚待验证；当前已用官方 Go MCP 客户端验证协议流程。
+## Packaging & Cross-Compilation
 
-## 单层分组
-
-- 每条资料最多一个 group；留空为“未分组”。旧条目不会按 key 中的斜杠自动分组。key 仍全库唯一，移动组不改 key，也不改变 AI 读写策略。
-- 编辑条目时选择已有组或输入新组名，保存后生效。组名为 1–64 个字符，不允许首尾空白、控制字符、斜杠和反斜杠；“未分组”是保留的显示名称。组名明文保存，请勿放入秘密。
-- 侧栏按组筛选，“全部条目”按组折叠。正常条目只出现一次；并发分组不一致时进入“分组待确认”，同时在全部候选组的筛选结果中可见。
-- 勾选条目可批量移动。选中一个命名组后，可以重命名或移除分组；组管理包含回收站成员。移除只解除分组，不删除条目、附件或历史。
-- 分组由当前成员推导，不保留独立空组。组重命名/移除要求成员版本和完整集合与确认时一致；有冲突或缺失记录时先处理。
-- 每次管理最多 20 条、序列化 payload 最多 8 MiB，超限整体拒绝，不暗中拆批；大组请手动分批移动。分组变化生成新版本、保留旧历史，因此增加记录体积，相关旧审批也会失效。
-- AI 只可查看和筛选分组，不能创建/移动/重命名组。历史恢复默认保留当前组；发生分组分歧时必须明确选择恢复后的组。没有 tags、多级目录或组级权限。
-- 外部离线设备仍可能产生分支或使已清空的旧组再次出现；没有跨设备原子“删除组”。
-
-## 删除、重命名与资料库格式
-
-- 新库使用格式 3。已有格式 1/2 可继续原有读写，不因改名、打开或改密码自动升级。删除/重命名需格式 2 或更新，分组需格式 3。
-- 要使用分组，先下载备份、更新所有设备程序至 `0.5.0-dev` 或更新版本、暂停其他设备写入，再在设置页输入主密码并明确确认升级为格式 3。升级不改写历史或轮换数据密钥，完成后锁定、关闭本机设备授权和浏览器记忆；主密码不变。
-- `0.4.0-dev` 及更早程序不能打开格式 3 配置。升级请求必须明确传入 `target_format: 3`，旧网页的格式 2 确认不能被沿用。同步不能保证配置与新记录同时到达；升级前必须停用旧程序，不能依靠同步实现跨设备原子升级。
-- 打开条目，通过标题旁的“资料操作”菜单重命名 key 或移到回收站；先保存或放弃未保存草稿。重命名保留正文、附件、权限和 entry_id，旧 key 不再是别名。旧名称若不再被当前分支占用，可以分配给另一条目，其历史不会混在一起。
-- 删除追加认证删除记录，不直接删除文件。正常列表、正文搜索和 MCP 目录不返回正常已删除条目；回收站仍占用该 key。选择删除前版本可恢复，也可在恢复时另选名称。删除不是安全擦除，不释放空间，旧备份仍含旧内容。
-- 离线改名、删除和编辑形成多个 head 时，所有候选 key 都标为冲突，不能自动读取正文。人类确认全部分支后可恢复/合并，或删除同一条目的全部分支；不同 entry_id 的同名冲突仍暂不支持处理。
-
-## 历史、备份和锁定
-
-- 打开条目后点击“历史与恢复”。选择历史版本，可编辑正文后恢复；附件沿用所选版本，旧历史全部保留。
-- 点击冲突条目进入同一界面。保存合并时绑定所有当前分支；出现新分支时拒绝旧请求。合并后的读取/修改策略分别采用当前分支中更严格的策略。
-- 在“设置 → 资料库”下载备份，或者从设置页/锁定页导入。备份含明文 key/description/group 等元信息和加密正文、附件、历史，不是将 ZIP 本身另行加密。
-- 恢复只支持新目录或空目录，不覆盖现有目录。先校验密码、文件与依赖，再切换并锁定资料库，用户需重新解锁。
-- 网页空闲锁定为设备级设置，默认关闭，范围 0–1440 分钟。只由已解锁网页的用户操作续期，后台轮询和 MCP 调用不续期；自动锁定会清除未保存草稿并撤销待审批请求。
-- **系统事件锁定默认开启**，与空闲设置独立。Linux 监听本地 systemd-logind，并核对当前用户的本地图形会话；Windows 监听当前会话 WTS 与电源通知。解锁系统/恢复运行不重开资料库，需重新输入主密码。
-- 监测断开时锁定一次；持续不可用时允许明确输入主密码，但显示无法保证系统锁定的提示。已知系统仍锁定/休眠时拒绝解锁，状态未知不会清除此前已知的锁定。没有可监测图形会话的 Linux 环境可能无法启动时自动解锁，可在确认环境后手动使用或关闭这项策略。
-- 请求入口与后台检查心跳，停顿超过 15 秒或时钟向后跳超过 5 秒也会锁定，可能导致额外锁定。通知延迟、失联处理和内存保护边界见 [锁定与退出](docs/BOUNDARIES.md#25-锁定与退出)。
-- 正文搜索仅面向已解锁网页，不返回正文片段、不持久化明文索引，也不开放给 MCP。
-
-## 测试与构建
-
-先构建网页，再运行：
+Build portable archives (`dist/`):
 
 ```bash
-go test -race ./...
-go vet ./...
-npm --prefix web run check
-npm --prefix web test
+make package
 ```
 
-本机 Linux 的自动测试覆盖：
-
-- 加密与篡改检测、三态权限、批量审批、原生 elicitation、客户端隔离、过期与撤销。
-- 同步乱序、并发分支、历史恢复权限、删除/改名、名称占用、缺失 head、分组冲突及批量操作原子性。
-- ZIP 路径与完整性校验、备份往返、主密码重包装、设备绑定和浏览器隔离、停用及清理失败。
-- 系统事件与空闲锁定、慢解锁期间的锁定事件、休眠后的期限、心跳及时间跳变。
-- 格式 1/2 的实际旧版本合成样本、显式升级和旧审批失效；旧格式普通保存不隐式迁移。
-- React 组件交互、真实 API 客户端的会话/CSRF 清理、晚到的 401/正文/备份/文件响应、双提交、草稿保护、独立正文搜索和 reviewed heads；附件限额、下载清理及 Markdown 恶意输入。
-- 文件限长、符号链接拒绝、替换失败保留目标与临时文件清理；记录拒绝覆盖、配置替换前的外部变化检查，以及格式 1 父子 key 一致性。
-- 首次空态、不读取工作目录中的库文件、创建失败保留当前库、记住位置丢失后不重建；选择器的 CSRF/会话校验、单窗口限制、取消/错误/锁定后晚到结果、两步创建与返回/取消。Linux 选择器测试使用隔离 HOME/PATH 的模拟图形辅助程序，不会打开开发者桌面；不等于真实系统对话框验收。
-
-平台集成检查使用临时 HOME/XDG 和私有 D-Bus：实际 GNOME Keyring 的读写、删除与锁定，模拟 logind 的会话/电源通知及重连，并用 Desktop Entry 校验工具、GIO 和 systemd 生成器检查启动参数。缺少相应工具时会跳过；不操作开发者现有凭据、启动项、锁屏或休眠。
-
-后端回归保留创建、编辑、历史恢复、正文检索、备份导入、设备授权/重启、密码变更、格式升级及回收站的覆盖。React 组件测试使用合成响应，不替代真实后端测试。本轮隔离程序的浏览器抽查已覆盖创建、保存及重读正文/附件、历史编辑恢复、MCP 凭据创建/撤销、真实 pending 请求的网页备用审批及结果领取、ZIP 恢复后锁定与密码清理；Radix 弹窗未触发 CSP 违规。这些是功能抽查，不是完整浏览器验收或实际 pi/harness 验收。独立程序冒烟覆盖分组、回收站和 ZIP 往返；实际旧程序验证了旧格式写入兼容及新格式配置/提前到达记录的拒绝。真实桌面/硬件、Windows 运行、实际 pi 审批 UI 和独立安全复核仍见上方待完成清单。
-
-Windows amd64 与 Linux arm64 可以交叉构建；交叉编译成功不代表已经完成对应系统的运行测试：
+Build portable archives plus Windows NSIS installers (`x64`, experimental `x86`) and Linux `DEB`/`RPM` (`amd64`, `arm64`) using **NSIS 3.11** and **nFPM 2.49.0**:
 
 ```bash
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o bin/foliochest-windows-amd64.exe ./cmd/foliochest
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o bin/foliochest-linux-arm64 ./cmd/foliochest
+make installers
 ```
 
-## 原型限制
+See [packaging/README.md](packaging/README.md) and [docs/RELEASING.md](docs/RELEASING.md) for toolchain and release details.
 
-- 正文最多 1 MiB；每个附件最多 2 MiB，每条最多 16 个附件。
-- 单个写入批次最多 20 条，序列化后的正文/附件合计最多 8 MiB；单次读取的正文和附件字节合计最多 8 MiB。
-- 资料库记录文件总量暂限 64 MiB、4096 个目录项，含保留历史；接近上限时需先保留完整备份。
-- 审批请求有效期 5 分钟，结果仅领取一次，重启或锁定会使原请求失效。
-- 正文冲突可在网页合并；附件沿用所选版本。不同 entry_id 的同名冲突仍需后续处理，当前不自动合并。
-- 历史及删除记录保留、不做自动清理。备份只接纳校验完整且依赖齐全的快照；损坏或缺失时请先手动复制原目录保留文件。
-- 设备设置目录必须在资料库之外；不要同步本机配置和浏览器资料。同一 `--device-dir` 暂只支持一个运行实例，不做多进程设备配置协调。
-- 实验性格式及更详细的安全边界见 [FORMAT](docs/FORMAT.md) 和 [BOUNDARIES](docs/BOUNDARIES.md)。
+## Testing
 
-## 许可证
+```bash
+make check
+```
 
-FolioChest / 资料匣采用 [MIT License](LICENSE)。第三方依赖及复制的组件保留各自的许可证与版权声明。
+Runs frontend type-checking, frontend unit tests, `go vet ./...`, and `go test -race ./...` (requires `npm --prefix web run build` first when running Go tests directly because `web/embed.go` embeds `web/dist/`).
+
+## Prototype Limits
+
+- Body max: `1 MiB`; attachments: up to `16` per entry, `2 MiB` each.
+- Write/read batch max: `20` entries, `8 MiB` serialized payload.
+- Vault records max: `64 MiB` total, `4096` files (including retained history).
+- Approval TTL: `5` minutes, single-claim result.
+- Different-`entry_id` key name collisions are flagged as conflicts and not auto-merged.
+
+## Documentation
+
+- [Design Overview](docs/DESIGN.md)
+- [Security & Consistency Boundaries](docs/BOUNDARIES.md)
+- [Vault File Format](docs/FORMAT.md)
+- [Security Policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+- [Release Process](docs/RELEASING.md)
+
+## License
+
+[MIT License](LICENSE). Third-party components and notices are preserved in [web/src/components/ui/NOTICE.md](web/src/components/ui/NOTICE.md) and collected into release packages by `tools/package`.

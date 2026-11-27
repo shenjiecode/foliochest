@@ -62,7 +62,6 @@ func (v *Vault) VerifyPassword(password string) error {
 	return v.verifyPassword(password)
 }
 
-// DeviceCredential must only be persisted through an OS credential provider.
 func (v *Vault) DeviceCredential(password string) (Binding, []byte, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -74,7 +73,6 @@ func (v *Vault) DeviceCredential(password string) (Binding, []byte, error) {
 	return b, raw, err
 }
 
-// UnlockDevice is used only once during startup, never after idle/manual locking.
 func (v *Vault) UnlockDevice(raw []byte) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()

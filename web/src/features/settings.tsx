@@ -22,7 +22,7 @@ export function Settings({
     task = useTask(),
     client = useClient();
   return (
-    <section className="settings-shell">
+    <section className="settings-shell" aria-label="设置">
       <header className="page-heading">
         <h1>设置</h1>
       </header>

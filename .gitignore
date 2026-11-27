@@ -5,7 +5,6 @@
 /runtime/
 /backups/
 /exports/
-/.cynos/
 .env
 .env.*
 !.env.example
@@ -18,14 +17,21 @@
 *.log
 *.tmp
 
-# Build outputs and frontend dependencies
-/cmd/foliochest/resource_windows_*.syso
+# Build, test, and frontend outputs
+*.syso
+*.test
+*.out
+coverage.*
 /bin/
 /dist/
 /node_modules/
 /web/node_modules/
 /web/dist/
 
-# OS files
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*~
 .DS_Store
 Thumbs.db

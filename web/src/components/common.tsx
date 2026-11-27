@@ -12,28 +12,49 @@ import { cn } from "@/lib/utils";
 export function SettingRow({
   title,
   note,
+  icon,
+  status,
   children,
 }: {
   title: string;
   note?: string;
+  icon?: ReactNode;
+  status?: string;
   children: ReactNode;
 }) {
   return (
     <div className="setting-row">
-      <div>
+      {icon && (
+        <span className="setting-icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
+      <div className="setting-copy">
         <h3>{title}</h3>
         {note && <p>{note}</p>}
       </div>
-      {children}
+      <div className="setting-control">
+        {status && <span className="setting-state">{status}</span>}
+        {children}
+      </div>
     </div>
   );
 }
 
 export function Brand() {
   return (
-    <span className="wordmark">
-      <span className="wordmark-cn">资料匣</span>
-      <span className="wordmark-en">FolioChest</span>
+    <span className="brand">
+      <img
+        className="brand-logo"
+        src="/logo.png"
+        width="48"
+        height="48"
+        alt=""
+      />
+      <span className="wordmark">
+        <span className="wordmark-cn">资料匣</span>
+        <span className="wordmark-en">FolioChest</span>
+      </span>
     </span>
   );
 }

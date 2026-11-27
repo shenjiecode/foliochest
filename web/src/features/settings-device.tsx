@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Power, LockKeyhole, PanelTop } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -9,7 +10,7 @@ import type { Device } from "@/lib/types";
 export function DeviceSettings() {
   const resource = useResource<Device>("/api/device");
   return (
-    <section className="settings-section">
+    <section className="settings-section device-settings">
       <ErrorNotice message={resource.error} />
       {resource.loading ? (
         <p>正在读取设备状态…</p>
@@ -81,6 +82,14 @@ function DeviceForm({ initial }: { initial: Device }) {
         <fieldset disabled={task.busy}>
           <SettingRow
             title="登录系统后启动"
+            icon={<Power />}
+            status={
+              startup !== device.startup.enabled
+                ? "未保存"
+                : startup
+                  ? "已启用"
+                  : "已禁用"
+            }
             note="不打开浏览器，不代表自动解锁。程序应放在固定位置，移动后重新登记。"
           >
             <Switch
@@ -114,6 +123,14 @@ function DeviceForm({ initial }: { initial: Device }) {
         <fieldset disabled={task.busy}>
           <SettingRow
             title="服务启动时自动解锁"
+            icon={<LockKeyhole />}
+            status={
+              auto !== device.auto_unlock
+                ? "未保存"
+                : auto
+                  ? "已启用"
+                  : "已禁用"
+            }
             note={device.provider + "；默认关闭，每次进程启动只尝试一次。"}
           >
             <Switch
@@ -130,21 +147,31 @@ function DeviceForm({ initial }: { initial: Device }) {
               已有授权与当前资料库不一致，请重新授权或关闭并清理。
             </Notice>
           )}
+          <SettingRow
+            title="记住这个浏览器"
+            icon={<PanelTop />}
+            status={
+              remember !== device.remembered_browser
+                ? "未保存"
+                : remember
+                  ? "已启用"
+                  : "已禁用"
+            }
+            note="仅当前资料库已解锁时有效，最长 90 天；新授权替换旧记忆，不认证其他浏览器。"
+          >
+            <Switch
+              aria-label="记住这个浏览器"
+              checked={remember}
+              disabled={!auto}
+              onCheckedChange={setRemember}
+            />
+          </SettingRow>
           {auto && (
             <div className="field-grid section-action">
               <Notice>
                 系统凭据保存库密钥，不保存主密码。同一系统账户下的恶意程序可能读取凭据。系统凭据不可用时仍需主密码。
               </Notice>
-              <SettingRow
-                title="记住这个浏览器"
-                note="有效期 90 天，新授权替换旧记忆；不认证其他浏览器。"
-              >
-                <Switch
-                  aria-label="记住这个浏览器"
-                  checked={remember}
-                  onCheckedChange={setRemember}
-                />
-              </SettingRow>
+
               <Field id="device-password" label="再次输入主密码">
                 <Input
                   id="device-password"

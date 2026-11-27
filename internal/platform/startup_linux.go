@@ -55,9 +55,7 @@ func (s *NativeStartup) Status() (StartupStatus, error) {
 	}
 	status.Enabled = !bytes.Contains(raw, []byte("\nHidden=true")) && !bytes.Contains(raw, []byte("\nX-GNOME-Autostart-enabled=false"))
 	expected, e := s.desktop()
-	// A display-name change alone must not invalidate a legacy registration.
-	compatible := bytes.Replace(raw, []byte("\nName=Keyfolio\n"), []byte("\nName=FolioChest\n"), 1)
-	status.Current = e == nil && bytes.Equal(expected, compatible)
+	status.Current = e == nil && bytes.Equal(expected, raw)
 	return status, nil
 }
 func (s *NativeStartup) Set(enabled bool) error {

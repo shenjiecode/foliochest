@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, FileText, Menu, X } from "lucide-react";
+import { FileText, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,10 +26,9 @@ import {
   type Group,
   type Member,
   type VaultAction,
-  vaultName,
 } from "@/lib/types";
 import { Unlock, VaultFlow } from "@/features/unlock";
-import { Sidebar, titles, type View } from "@/features/navigation";
+import { Sidebar, type View } from "@/features/navigation";
 import { EntryList } from "@/features/entry-list";
 import { EntryEditor } from "@/features/entry-editor";
 import { EntryManagement, GroupManagement } from "@/features/management";
@@ -165,7 +164,16 @@ function Workspace({
       location.hash === "#approvals" ? "approvals" : "entries",
     ),
     [selected, setSelected] = useState<string | null>(null),
-    [isNew, setIsNew] = useState(false);
+    [isNew, setIsNew] = useState(false),
+    [draftGroup, setDraftGroup] = useState("");
+  const [recentGroups, setRecentGroups] = useState(new Set<string>());
+  const [showEmpty, setShowEmpty] = useState(() => {
+    try {
+      return localStorage.getItem("foliochest.show-empty-groups") !== "false";
+    } catch {
+      return true;
+    }
+  });
   const [query, setQuery] = useState(""),
     [bodySearch, setBodySearch] = useState(false),
     [checked, setChecked] = useState(new Map<string, Member>()),
@@ -254,13 +262,33 @@ function Workspace({
           await ctx.refresh();
         }),
     );
+  const createEntry = (group = "") =>
+    void guard(() => {
+      setView("entries");
+      history.replaceState(null, "", location.pathname + location.search);
+      setQuery("");
+      setChecked(new Map());
+      setMobile(false);
+      setDraftGroup(group);
+      setIsNew(true);
+      setSelected(null);
+      setEditorEpoch((n) => n + 1);
+      setDetail(true);
+    });
   const sidebar = (
     <Sidebar
       directory={state.vault.directory}
       count={state.vault.entries}
       groups={catalog.groups}
       view={view}
+      notice={
+        <ApprovalNotice
+          count={catalog.requests.length}
+          onOpen={() => go("approvals")}
+        />
+      }
       onGo={go}
+      onNew={() => createEntry()}
       onLock={lock}
       onQuit={() => void guard(() => void exit.quit())}
       onOpen={(action) => open({ kind: "vault", action })}
@@ -268,6 +296,25 @@ function Workspace({
       {(view === "entries" || view === "trash") && (
         <EntryList
           entries={filterEntries(catalog.entries, null, query, search.matches)}
+          groups={catalog.groups}
+          recentGroups={recentGroups}
+          showEmpty={showEmpty}
+          onShowEmpty={(value) => {
+            setShowEmpty(value);
+            try {
+              localStorage.setItem(
+                "foliochest.show-empty-groups",
+                String(value),
+              );
+            } catch {
+              /* Preference remains available for this session. */
+            }
+          }}
+          onGroupCreated={(name) => {
+            setRecentGroups((before) => new Set([...before, name]));
+            setQuery("");
+            refresh();
+          }}
           query={query}
           bodySearch={bodySearch}
           trash={view === "trash"}
@@ -303,18 +350,14 @@ function Workspace({
               return next;
             })
           }
-          onNew={() =>
-            void guard(() => {
-              setMobile(false);
-              setIsNew(true);
-              setSelected(null);
-              setEditorEpoch((n) => n + 1);
-              setDetail(true);
-            })
-          }
+          onNew={createEntry}
           onMove={() => open({ kind: "group" })}
           onManage={(name) => {
-            const source = catalog.groups.find((g) => g.name === name);
+            const source =
+              catalog.groups.find((g) => g.name === name) ??
+              (recentGroups.has(name)
+                ? { name, count: 0, deleted_count: 0, blocked: 0, members: [] }
+                : undefined);
             if (source) open({ kind: "group", source });
           }}
           onClear={() => setChecked(new Map())}
@@ -327,26 +370,15 @@ function Workspace({
       <div className="app-layout" data-view={view} data-detail-open={detail}>
         <div className="desktop-sidebar">{sidebar}</div>
         <main className="main-shell">
-          <header className="topbar">
-            <IconButton
-              className="mobile-menu"
-              label="打开导航"
-              onClick={() => setMobile(true)}
-            >
+          <div className="mobile-navigation">
+            <IconButton label="打开导航" onClick={() => setMobile(true)}>
               <Menu />
             </IconButton>
-            <div className="breadcrumbs">
-              <span className="breadcrumb-vault">
-                {vaultName(state.vault.directory)}
-              </span>
-              <ChevronRight />
-              <strong>{titles[view]}</strong>
-            </div>
             <ApprovalNotice
               count={catalog.requests.length}
               onOpen={() => go("approvals")}
             />
-          </header>
+          </div>
           {(connectionError || catalog.error || task.error || exit.error) && (
             <div className="workspace-warning">
               <ErrorNotice
@@ -383,10 +415,21 @@ function Workspace({
                   summary={catalog.entries.find((e) => e.key === selected)}
                   groups={catalog.groups}
                   format={state.vault.format}
-                  initialGroup=""
+                  initialGroup={draftGroup}
                   onDirty={setDirty}
                   onBusy={setBusy}
                   onSaved={(key) => changed(key)}
+                  onCancel={() =>
+                    void guard(() => {
+                      if (isNew) {
+                        setIsNew(false);
+                        setSelected(null);
+                        setDetail(false);
+                      } else {
+                        setEditorEpoch((n) => n + 1);
+                      }
+                    })
+                  }
                   onManage={(kind, entry) => open({ kind, entry })}
                   onHistory={() => {
                     if (selected) open({ kind: "history", key: selected });
@@ -408,13 +451,7 @@ function Workspace({
                     }
                     action={
                       view === "entries" ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setIsNew(true);
-                            setDetail(true);
-                          }}
-                        >
+                        <Button variant="outline" onClick={() => createEntry()}>
                           新建资料
                         </Button>
                       ) : undefined
@@ -479,7 +516,14 @@ function Workspace({
           groups={catalog.groups}
           format={state.vault.format}
           onClose={() => setDialog(null)}
-          onChanged={() => {
+          onChanged={(next) => {
+            if (dialog.source)
+              setRecentGroups((before) => {
+                const names = new Set(before);
+                names.delete(dialog.source!.name);
+                if (next) names.add(next);
+                return names;
+              });
             setChecked(new Map());
             setSelected(null);
             setIsNew(false);

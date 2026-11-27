@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { type Group, type VaultAction, vaultName } from "@/lib/types";
@@ -34,50 +35,67 @@ export function Sidebar({
   groups,
   view,
   children,
+  notice,
   onGo,
   onLock,
   onQuit,
   onOpen,
+  onNew,
 }: {
   directory: string;
   count: number;
   groups: Group[];
   view: View;
   children?: ReactNode;
+  notice?: ReactNode;
   onGo: (view: View) => void;
   onLock: () => void;
   onQuit: () => void;
   onOpen: (kind: VaultAction) => void;
+  onNew: () => void;
 }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
         <Brand />
+        {notice}
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="vault-switch" title={directory}>
-            <FolderClosed />
-            <span>{vaultName(directory)}</span>
-            <ChevronDown />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onSelect={() => onOpen("open")}>
-            <FolderOpen />
-            打开其他资料库
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => onOpen("create")}>
-            <Plus />
-            创建资料库
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => onOpen("restore")}>
-            <ArchiveRestore />
-            从备份恢复
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="vault-picker-row">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="vault-switch" title={directory}>
+              <FolderClosed />
+              <span>{vaultName(directory)}</span>
+              <ChevronDown />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" matchTriggerWidth>
+            <DropdownMenuItem onSelect={() => onOpen("open")}>
+              <FolderOpen />
+              打开其他资料库
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onOpen("create")}>
+              <Plus />
+              创建资料库
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onOpen("restore")}>
+              <ArchiveRestore />
+              从备份恢复
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onNew}
+          aria-label="新建资料"
+        >
+          <Plus />
+          新建
+        </Button>
+      </div>
       {view !== "entries" && (
         <nav className="primary-nav" aria-label="主导航">
           <button className="nav-item" onClick={() => onGo("entries")}>
@@ -95,9 +113,11 @@ export function Sidebar({
         >
           <Trash2 />
           <span>回收站</span>
-          <span className="count">
-            {groups.reduce((n, g) => n + g.deleted_count, 0)}
-          </span>
+          {groups.some((g) => g.deleted_count > 0) && (
+            <span className="count">
+              {groups.reduce((n, g) => n + g.deleted_count, 0)}
+            </span>
+          )}
         </button>
         <button
           className={cn("nav-item", view === "settings" && "active")}
@@ -106,14 +126,16 @@ export function Sidebar({
           <Settings2 />
           <span>设置</span>
         </button>
-        <button className="nav-item" onClick={onLock}>
-          <LockKeyhole />
-          <span>锁定资料库</span>
-        </button>
-        <button className="nav-item" onClick={onQuit}>
-          <Power />
-          <span>退出资料匣</span>
-        </button>
+        <div className="sidebar-session-actions">
+          <button className="nav-item" aria-label="锁定资料库" onClick={onLock}>
+            <LockKeyhole />
+            <span>锁定</span>
+          </button>
+          <button className="nav-item" aria-label="退出资料匣" onClick={onQuit}>
+            <Power />
+            <span>退出</span>
+          </button>
+        </div>
       </nav>
     </aside>
   );

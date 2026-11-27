@@ -26,7 +26,7 @@ type webSession struct {
 	Expires       time.Time
 }
 type Server struct {
-	// Set by the application before serving; never supplied by HTTP clients.
+	// Set by the application before serving.
 	LauncherToken   string
 	Shutdown        func()
 	Vault           *vault.Vault
@@ -43,6 +43,7 @@ type Server struct {
 	idle            *idleState
 	device          *deviceState
 	maintenance     sync.Mutex
+	groupMu         sync.Mutex
 	picker          sync.Mutex
 	chooseDirectory platform.DirectoryPicker
 	knownVault      atomic.Bool
@@ -107,10 +108,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.ExpireIdle()
 	if r.URL.Path == "/mcp" {
 		s.serveMCP(w, r)
-		return
-	}
-	if r.URL.Path == "/favicon.ico" {
-		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if !strings.HasPrefix(r.URL.Path, "/api/") {

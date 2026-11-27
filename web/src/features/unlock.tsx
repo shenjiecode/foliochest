@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  ArrowRight,
-  FolderClosed,
-  FolderOpen,
-  LockKeyhole,
-} from "lucide-react";
+import { ArrowRight, FolderClosed, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Brand, Field } from "@/components/common";
@@ -44,7 +39,12 @@ export function Unlock({ state }: { state: AppState }) {
       <div className="lock-center scroll-region">
         <section className="unlock-card">
           <div className="vault-emblem">
-            {exists ? <LockKeyhole /> : <FolderOpen />}
+            <img
+              src="/logo.png"
+              width="88"
+              height="88"
+              alt="资料匣 FolioChest"
+            />
           </div>
           <h1>
             {!selected

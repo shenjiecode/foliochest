@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import { ChevronDown } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Field } from "./common";
@@ -165,6 +166,25 @@ export function GroupField({
   disabled?: boolean;
   compact?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [active, setActive] = useState(-1);
+  const input = useRef<HTMLInputElement>(null);
+  const unavailable = disabled || format < 3;
+  const options = [
+    { name: "", label: "未分组" },
+    ...groups
+      .filter((g) => g.name)
+      .map((g) => ({ name: g.name, label: g.name })),
+  ].filter((g) =>
+    g.label.toLocaleLowerCase().includes(filter.toLocaleLowerCase()),
+  );
+  const expanded = open && !unavailable;
+  const choose = (name: string) => {
+    onChange(name);
+    setOpen(false);
+    setActive(-1);
+  };
   return (
     <Field
       id={id}
@@ -177,21 +197,111 @@ export function GroupField({
             : "明文，留空为未分组"
       }
     >
-      <Input
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled || format < 3}
-        list={id + "-options"}
-        placeholder="选择已有组或输入组名"
-      />
-      <datalist id={id + "-options"}>
-        {groups
-          .filter((g) => g.name)
-          .map((g) => (
-            <option key={g.name} value={g.name} />
-          ))}
-      </datalist>
+      <div
+        className="group-combobox"
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+            setOpen(false);
+        }}
+      >
+        <Input
+          ref={input}
+          id={id}
+          role="combobox"
+          aria-expanded={expanded}
+          aria-controls={expanded ? id + "-options" : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            expanded && active >= 0 && active < options.length
+              ? id + "-option-" + active
+              : undefined
+          }
+          autoComplete="off"
+          value={value}
+          onFocus={() => {
+            setFilter("");
+            setActive(-1);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setFilter(e.target.value);
+            setActive(-1);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && expanded) {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+            } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setOpen(true);
+              setActive((n) =>
+                options.length
+                  ? e.key === "ArrowDown"
+                    ? (n + 1) % options.length
+                    : n <= 0
+                      ? options.length - 1
+                      : n - 1
+                  : -1,
+              );
+            } else if (e.key === "Enter" && expanded) {
+              e.preventDefault();
+              if (active >= 0 && active < options.length)
+                choose(options[active].name);
+              else setOpen(false);
+            }
+          }}
+          disabled={unavailable}
+          placeholder="选择已有组或输入组名"
+        />
+        <button
+          type="button"
+          className="group-toggle"
+          aria-label="展开分组选项"
+          disabled={unavailable}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            if (expanded) setOpen(false);
+            else {
+              input.current?.focus();
+              setFilter("");
+              setActive(-1);
+              setOpen(true);
+            }
+          }}
+        >
+          <ChevronDown />
+        </button>
+        {expanded && (
+          <div
+            className="group-options"
+            id={id + "-options"}
+            role="listbox"
+            aria-label="分组选项"
+          >
+            {options.map((g, index) => (
+              <button
+                type="button"
+                role="option"
+                tabIndex={-1}
+                id={id + "-option-" + index}
+                key={g.name}
+                aria-selected={g.name === value}
+                data-active={index === active}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => choose(g.name)}
+              >
+                {g.label}
+              </button>
+            ))}
+            {!options.length && (
+              <p className="field-note">将使用输入的新组名</p>
+            )}
+          </div>
+        )}
+      </div>
     </Field>
   );
 }

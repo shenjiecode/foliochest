@@ -73,6 +73,5 @@ func (s *Server) directoryPicker(w http.ResponseWriter, r *http.Request, id stri
 		apiError(w, err, 503)
 		return
 	}
-	// Selection fills a field only. It does not select/unlock/create a vault.
 	writeJSON(w, map[string]any{"cancelled": false, "directory": path})
 }

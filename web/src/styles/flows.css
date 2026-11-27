@@ -42,17 +42,15 @@
 .vault-emblem {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  background: var(--accent);
-  color: var(--primary);
-  border-radius: 12px;
-  margin: 0 auto 24px;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 20px;
 }
-.vault-emblem svg {
-  width: 25px;
-  height: 25px;
-  stroke-width: 1.5;
+.vault-emblem img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .unlock-card h1 {
   font-size: 26px;
@@ -134,11 +132,32 @@
 }
 .settings-tabs > [data-slot="tabs-list"] {
   flex-shrink: 0;
-  width: max-content;
+  width: 100%;
   max-width: 100%;
+  justify-content: flex-start;
+  gap: 24px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 0;
+  height: 44px;
 }
 .settings-tabs > [data-slot="tabs-list"] > button {
-  padding-inline: 18px;
+  flex: 0 0 auto;
+  height: 44px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  font-size: 16px;
+  background: transparent;
+  box-shadow: none;
+}
+.settings-tabs > [data-slot="tabs-list"] > button[data-state="active"] {
+  color: var(--primary);
+  background: transparent;
+  border-bottom-color: var(--primary);
+  box-shadow: none;
 }
 .settings-body {
   min-height: 0;
@@ -147,7 +166,7 @@
   scrollbar-width: thin;
 }
 .settings-section {
-  max-width: 800px;
+  max-width: 1120px;
 }
 .settings-section > h2 {
   font-size: 13px;
@@ -169,13 +188,13 @@
   min-width: 0;
 }
 .setting-row h3 {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 .setting-row p {
-  margin-top: 5px;
-  font-size: 12px;
+  margin-top: 6px;
+  font-size: 14px;
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
 }
@@ -465,12 +484,8 @@
   .back-to-list {
     display: inline-flex;
   }
-  .mobile-menu {
-    display: inline-flex;
-  }
-  .topbar {
-    padding-inline: 16px;
-    gap: 8px;
+  .mobile-navigation {
+    display: flex;
   }
   .settings-shell {
     padding: 24px 24px 0;
@@ -505,8 +520,8 @@
     padding: 20px 16px;
     gap: 8px;
   }
-  .entry-heading h2 {
-    font-size: 18px;
+  .entry-title {
+    font-size: 22px;
   }
   .heading-actions {
     gap: 0;

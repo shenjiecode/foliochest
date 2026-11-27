@@ -98,9 +98,9 @@ export type Device = {
 };
 export type VaultAction = "open" | "create" | "restore";
 export const policyLabels: Record<Policy, string> = {
-  allow: "免确认",
-  ask: "需确认",
-  deny: "拒绝",
+  allow: "允许",
+  ask: "需要授权",
+  deny: "不允许",
 };
 export const stateLabels: Record<string, string> = {
   ready: "可用",
