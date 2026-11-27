@@ -75,6 +75,8 @@ const transport: typeof fetch = async (path, options) => {
     }
     case "/api/settings":
       return json({ idle_lock_minutes: 0, lock_on_system_events: true });
+    case "/api/mcp/settings":
+      return json({ mode: "http", command: "/synthetic/foliochest", args: ["mcp"], url: "http://127.0.0.1:7463/mcp" });
     case "/api/clients":
       return json(clients);
     case "/api/clients/create": {

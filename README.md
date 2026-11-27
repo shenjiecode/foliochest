@@ -58,17 +58,21 @@ Closing the browser tab does not stop the background service; use the **Exit** b
 
 ## MCP Integration
 
-1. Unlock the vault in the web UI and open **Settings → MCP** to create a client token.
-2. Point your MCP client to `http://127.0.0.1:7463/mcp` with `Authorization: Bearer <token>`.
+1. Start and unlock FolioChest, then copy the default **stdio** configuration from **Settings → MCP**. It uses `foliochest mcp` with the executable path and device directory; no manual token is needed.
+2. The stdio sidecar forwards to the running local application, never opens or unlocks a separate vault, and does not launch a browser. Start the application first. Each connection has isolated approvals.
+3. Only explicitly selecting **HTTP (advanced)** enables `/mcp` and token creation. Configure `Authorization: Bearer <token>`. Modes are exclusive; switching locks the vault and invalidates approvals. Older installations without a saved mode default to stdio; existing HTTP tokens are retained but inactive.
 
 | Tool | Purpose |
 | --- | --- |
-| `discover_entries` | Search plaintext `key`, `description`, and `group` (with optional exact `group` filter); never returns bodies |
+| `discover_entries` | Directory/search with `query`, exact `group` and `keys` filters; optional `include_description` (default true); `offset`/`limit` pagination (default 100, max 200), returns `total`/`next_offset`; never returns bodies |
+| `list_groups` | Active group names and counts; optional `include_empty` includes local-only empty groups; excludes trash members |
 | `read_entries` | Request plaintext `value` or attachments for specific keys under per-key read policy |
 | `replace_entries` | Submit full replacements bound to `expected_revision` under per-key write policy |
 | `request_result` | Poll or claim the result of a pending/approved request once |
 
-Example with `pi` (after exporting `FOLIOCHEST_TOKEN`):
+Discovery is key-sorted, not a fixed snapshot: restart pagination when concurrent writes or sync change the directory. Exact `keys` are limited to 100; body read/write batches remain limited to 20.
+
+HTTP example with `pi` (after enabling HTTP and exporting `FOLIOCHEST_TOKEN`):
 
 ```bash
 pi mcp add foliochest --url http://127.0.0.1:7463/mcp --bearer-token-env-var FOLIOCHEST_TOKEN

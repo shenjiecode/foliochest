@@ -37,6 +37,7 @@ type Server struct {
 	clients         *clients
 	mu              sync.Mutex
 	sessions        map[string]*webSession
+	mcpTransport    *mcpTransportState
 	mcpHandlers     map[string]http.Handler
 	static          fs.FS
 	system          *systemState
@@ -78,6 +79,9 @@ func New(v *vault.Vault, deviceDir, baseURL string, static fs.FS) (*Server, erro
 	}
 	s := &Server{chooseDirectory: platform.PickDirectory, system: &systemState{heartbeat: time.Now(), now: time.Now}, device: device, idle: idle, Vault: v, Access: access.New(v, baseURL), baseURL: baseURL, host: u.Host, deviceDir: deviceDir, clients: c, sessions: map[string]*webSession{}, mcpHandlers: map[string]http.Handler{}, static: static}
 	s.knownVault.Store(v.Status().Exists || rememberedLocation(v.Status().Directory, deviceDir))
+	if err = s.initMCPTransport(); err != nil {
+		return nil, err
+	}
 	if err = s.initSingleVault(); err != nil {
 		return nil, err
 	}
@@ -110,6 +114,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.SystemHeartbeat()
 	s.ExpireIdle()
+	if r.URL.Path == "/internal/mcp/stdio" {
+		s.serveStdioBridge(w, r)
+		return
+	}
 	if r.URL.Path == "/mcp" {
 		s.serveMCP(w, r)
 		return
@@ -276,6 +284,14 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request, create bool) (s
 	return id, &copySession
 }
 func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/api/mcp/settings" {
+		s.mcpSettings(w, r)
+		return
+	}
+	if r.URL.Path == "/api/app/check-update" {
+		s.checkUpdate(w, r)
+		return
+	}
 	if s.serveGroups(w, r) {
 		return
 	}
@@ -367,6 +383,10 @@ func (s *Server) serveAuthenticated(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, s.clients.All())
 	case "/api/clients/create":
+		if s.mcpMode() != "http" {
+			apiError(w, errors.New("请先明确启用 HTTP MCP"), 409)
+			return
+		}
 		if !method(w, r, "POST") {
 			return
 		}

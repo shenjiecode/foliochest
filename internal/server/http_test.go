@@ -146,6 +146,7 @@ func TestWebAuthenticationAndCSRF(t *testing.T) {
 }
 func TestNoPublicMCPOrApprovalEndpoint(t *testing.T) {
 	b := setupHTTP(t)
+	enableTestHTTP(b)
 	req, _ := http.NewRequest("POST", b.url+"/mcp", strings.NewReader("{}"))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
@@ -187,6 +188,7 @@ func toolOutput[T any](t *testing.T, result *mcp.CallToolResult) T {
 }
 func TestMCPDiscoveryApprovalReplaceAndRevoke(t *testing.T) {
 	b := setupHTTP(t)
+	enableTestHTTP(b)
 	original := b.seed()
 	client, token, err := b.app.clients.Add("test harness")
 	if err != nil {
@@ -202,7 +204,7 @@ func TestMCPDiscoveryApprovalReplaceAndRevoke(t *testing.T) {
 	defer session.Close()
 	t.Logf("negotiated protocol: %s", session.InitializeResult().ProtocolVersion)
 	tools, err := session.ListTools(ctx, nil)
-	if err != nil || len(tools.Tools) != 4 {
+	if err != nil || len(tools.Tools) != 5 {
 		t.Fatal(tools, err)
 	}
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "discover_entries", Arguments: map[string]any{"query": "deployment"}})
@@ -210,7 +212,7 @@ func TestMCPDiscoveryApprovalReplaceAndRevoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	discovery := toolOutput[discoverResult](t, result)
-	if len(discovery.Entries) != 1 || discovery.Entries[0].Description != "Synthetic deployment notes" {
+	if len(discovery.Entries) != 1 || discovery.Entries[0].Description == nil || *discovery.Entries[0].Description != "Synthetic deployment notes" {
 		t.Fatal(discovery)
 	}
 	raw, _ := json.Marshal(result)
@@ -267,6 +269,7 @@ func TestMCPNativeElicitation(t *testing.T) {
 		t.Run(map[bool]string{true: "accept", false: "decline"}[accept], func(t *testing.T) {
 			b := setupHTTP(t)
 			b.seed()
+			enableTestHTTP(b)
 			_, token, err := b.app.clients.Add("interactive harness")
 			if err != nil {
 				t.Fatal(err)

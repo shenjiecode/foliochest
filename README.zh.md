@@ -58,17 +58,21 @@ make build
 
 ## MCP 接入
 
-1. 在网页解锁资料库，打开 **设置 → MCP** 创建接入凭据。
-2. 客户端连接 `http://127.0.0.1:7463/mcp`，携带请求头 `Authorization: Bearer <接入凭据>`。
+1. 先启动资料匣并在网页解锁，打开 **设置 → MCP**，复制默认的 stdio 配置到 AI 客户端。命令为 `foliochest mcp`；设置页会生成当前程序的完整路径及 `--device-dir`，不需要手动配置 Token。
+2. stdio 子进程只转接已经运行的本机后台，不独立打开或解锁资料库；后台未启动时明确报错，不自动打开浏览器。每个连接隔离审批，退出客户端不退出资料匣。
+3. 只有明确选择 **HTTP（高级）** 并确认后，才开放 `http://127.0.0.1:7463/mcp`；此时创建客户端凭据并配置 `Authorization: Bearer <接入凭据>`。两种接入方式互斥，切换会锁库、使旧审批失效，需重新解锁和连接。升级后未保存接入方式的旧安装默认 stdio，旧 HTTP Token 保留但不启用。
 
 | 工具 | 用途 |
 | --- | --- |
-| `discover_entries` | 检索公开的 `key`、`description` 和 `group`（支持按组精确筛选）；不返回正文 |
+| `discover_entries` | 目录／搜索：`query`、精确 `group` 与 `keys` 可组合；`include_description` 默认 true；`offset` / `limit` 分页，默认 100、最大 200，返回 `total` / `next_offset`；不返回正文 |
+| `list_groups` | 返回非删除资料的分组名称及数量，`include_empty` 可包含本机空组（不参与同步）；不返回回收站成员 |
 | `read_entries` | 按 key 策略申请读取正文或指定附件 |
 | `replace_entries` | 基于 `expected_revision` 按修改策略提交完整替换 |
 | `request_result` | 查询待审批状态，并单次领取已批准的执行结果 |
 
-以 `pi` 为例（先设置 `FOLIOCHEST_TOKEN` 环境变量）：
+目录按 key 排序，分页不是固定快照；同步或写入期间目录变化时应重新遍历。`keys` 最多 100 个，正文读写批次仍最多 20 条。
+
+选择 HTTP 后，以 `pi` 为例（先设置 `FOLIOCHEST_TOKEN` 环境变量）：
 
 ```bash
 pi mcp add foliochest --url http://127.0.0.1:7463/mcp --bearer-token-env-var FOLIOCHEST_TOKEN

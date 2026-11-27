@@ -10,6 +10,7 @@ import { download } from "@/lib/files";
 import { type AppState, type Security, type VaultAction } from "@/lib/types";
 import { DeviceSettings } from "./settings-device";
 import { MCPSettings } from "./settings-mcp";
+import { UpdateSettings } from "./settings-update";
 import { validatePassword } from "./unlock";
 export function Settings({
   state,
@@ -83,9 +84,7 @@ export function Settings({
                 恢复
               </Button>
             </SettingRow>
-            <SettingRow title="程序版本">
-              <span>{state.version}</span>
-            </SettingRow>
+            <UpdateSettings version={state.version} />
           </section>
         </TabsContent>
         <TabsContent value="security" className="settings-body">

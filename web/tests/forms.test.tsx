@@ -6,6 +6,8 @@ import { SessionClient } from "../src/lib/client";
 import { ConfirmProvider } from "../src/components/forms";
 import { DeviceSettings } from "../src/features/settings-device";
 import { Settings } from "../src/features/settings";
+import { UpdateSettings } from "../src/features/settings-update";
+import { MCPSettings } from "../src/features/settings-mcp";
 import { GroupManagement } from "../src/features/management";
 import { validatePassword } from "../src/features/unlock";
 import { state, json } from "./fixtures";
@@ -108,6 +110,55 @@ try {
   assert.equal(document.querySelector("#device-password"), null);
   assert.ok(find("重试清理旧凭据"));
   assert.equal(find("保存设备授权").disabled, false);
+  // Update checks are explicit, never triggered by mounting the settings page.
+  let checks = 0;
+  const updateClient = new SessionClient(async (path, options) => {
+    if (path === "/api/state") return json(state);
+    if (path === "/api/app/check-update") {
+      checks++;
+      assert.deepEqual(JSON.parse(String(options?.body)), { confirmed: true });
+      if (checks > 1) return json({ error: "GitHub 请求受限" }, 502);
+      return json({ latest: "0.6.3", status: "available", url: "https://github.com/shenjiecode/foliochest/releases/tag/v0.6.3" });
+    }
+    throw new Error("Unexpected update route");
+  });
+  await updateClient.refresh();
+  await act(async () => root.render(
+    <ClientContext value={updateClient}><UpdateSettings version="0.6.2" /></ClientContext>,
+  ));
+  assert.equal(checks, 0);
+  await click(find("检查更新"));
+  assert.equal(checks, 1);
+  assert.ok(document.body.textContent?.includes("发现新版本 0.6.3"));
+  assert.equal(document.querySelector("a")?.getAttribute("href"), "https://github.com/shenjiecode/foliochest/releases/tag/v0.6.3");
+  assert.equal(document.querySelector("a")?.getAttribute("rel"), "noopener noreferrer");
+  await click(find("检查更新"));
+  assert.ok(document.body.textContent?.includes("GitHub 请求受限"));
+  assert.equal(document.querySelector("a")?.getAttribute("href"), "https://github.com/shenjiecode/foliochest/releases/latest");
+  // Default stdio does not fetch or expose HTTP credentials.
+  let modeBody: any;
+  const modeClient = new SessionClient(async (path, options) => {
+    if (path === "/api/state") return json(state);
+    if (path === "/api/mcp/settings") {
+      if (options?.method === "POST") {
+        modeBody = JSON.parse(String(options.body));
+        return json({});
+      }
+      return json({ mode: "stdio", command: "/synthetic/foliochest", args: ["mcp", "--device-dir", "/synthetic/device"], url: "http://127.0.0.1:7463/mcp" });
+    }
+    throw new Error("stdio must not fetch HTTP client credentials: " + path);
+  });
+  await modeClient.refresh();
+  await act(async () => root.render(
+    <ClientContext value={modeClient}><ConfirmProvider><MCPSettings /></ConfirmProvider></ClientContext>,
+  ));
+  assert.ok(document.body.textContent?.includes("复制 stdio 配置"));
+  assert.equal(document.querySelector("#client-name"), null);
+  assert.equal(modeBody, undefined);
+  await click(find("HTTP（高级）"));
+  assert.equal(modeBody, undefined);
+  await click(find("确认"));
+  assert.deepEqual(modeBody, { mode: "http", confirmed: true });
   // Changing the source props after opening does not change the reviewed members.
   const source: Group = {
     name: "工作",

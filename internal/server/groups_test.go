@@ -79,6 +79,7 @@ func TestMCPGroupDiscoveryCannotManageGroups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	enableTestHTTP(b)
 	_, token, err := b.app.clients.Add("synthetic group client")
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +96,7 @@ func TestMCPGroupDiscoveryCannotManageGroups(t *testing.T) {
 		t.Fatal("legacy server brand")
 	}
 	tools, err := session.ListTools(ctx, nil)
-	if err != nil || len(tools.Tools) != 4 {
+	if err != nil || len(tools.Tools) != 5 {
 		t.Fatal(tools, err)
 	}
 	for _, args := range []struct {

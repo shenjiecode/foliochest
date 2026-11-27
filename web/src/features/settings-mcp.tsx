@@ -3,10 +3,50 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/common";
 import { ErrorNotice, Notice, useConfirm } from "@/components/forms";
-import { useClient, useTask } from "@/lib/hooks";
+import { useClient, useResource, useTask } from "@/lib/hooks";
 import { errorText, StaleRequest } from "@/lib/client";
 import type { Client } from "@/lib/types";
+type MCPConfig = { mode: "stdio" | "http"; command: string; args: string[]; url: string };
 export function MCPSettings() {
+  const resource = useResource<MCPConfig>("/api/mcp/settings");
+  const task = useTask();
+  const confirm = useConfirm();
+  const config = resource.data;
+  const change = (mode: "stdio" | "http") => task.run(async (ctx) => {
+    if (!(await confirm({
+      title: mode === "http" ? "启用 HTTP MCP？" : "切回 stdio？",
+      description: "两种接入方式互斥。切换会锁定资料库并使旧审批失效，请重新解锁和连接客户端。HTTP 需要独立接入凭据。",
+    }))) return;
+    await ctx.request("/api/mcp/settings", { mode, confirmed: true });
+    await ctx.refresh("MCP 接入方式已更新，请重新解锁。");
+  });
+  return (
+    <>
+      <section className="settings-section">
+        <h2>MCP 接入方式</h2>
+        <p className="settings-footnote">默认 stdio，由 AI 客户端调用本机程序，无需手动配置 Token。仅明确选择 HTTP 时开放 HTTP MCP；两种方式不同时启用。</p>
+        <ErrorNotice message={resource.error || task.error} />
+        {!config ? <p>正在读取接入设置…</p> : <>
+          <div className="inline-actions">
+            <Button variant={config.mode === "stdio" ? "default" : "outline"} disabled={task.busy || config.mode === "stdio"} onClick={() => void change("stdio")}>stdio（推荐）</Button>
+            <Button variant={config.mode === "http" ? "default" : "outline"} disabled={task.busy || config.mode === "http"} onClick={() => void change("http")}>HTTP（高级）</Button>
+          </div>
+          {config.mode === "stdio" && <>
+            <p className="settings-footnote">先启动并解锁资料匣，再让 AI 客户端执行以下配置。子进程仅转接本机后台，不单独解锁或打开资料库；退出 AI 客户端不会退出资料匣。</p>
+            <pre className="path-value">{JSON.stringify({ mcpServers: { foliochest: { command: config.command, args: config.args } } }, null, 2)}</pre>
+            <Button variant="outline" disabled={task.busy} onClick={() => void task.run(async (ctx) => {
+              ctx.assert();
+              await navigator.clipboard.writeText(JSON.stringify({ mcpServers: { foliochest: { command: config.command, args: config.args } } }, null, 2));
+            })}>复制 stdio 配置</Button>
+            <p className="settings-footnote">读取、修改仍遵守逐条权限；锁库后 MCP 无法访问。空组只属于本机，分页目录不是跨同步写入的固定快照。</p>
+          </>}
+        </>}
+      </section>
+      {config?.mode === "http" && <HTTPMCPSettings />}
+    </>
+  );
+}
+function HTTPMCPSettings() {
   const [clients, setClients] = useState<Client[]>([]),
     [name, setName] = useState(""),
     [token, setToken] = useState(""),

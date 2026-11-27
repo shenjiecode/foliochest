@@ -22,6 +22,13 @@ import (
 )
 
 func Run() {
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		if err := runStdio(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		platform.ShowLaunchError(err.Error())
 		os.Exit(1)
@@ -69,7 +76,7 @@ func run() error {
 			return err
 		}
 		if *root != "" {
-			return errors.New("这个本机配置已有资料匣进程；请从已有网页切换资料库，不能通过重复启动切库")
+			return errors.New("这个本机配置已有资料匣进程；请打开已有网页；如需变更保存位置，请使用设置中的迁移操作")
 		}
 		if !*background {
 			return platform.OpenBrowser(address)
@@ -95,6 +102,10 @@ func run() error {
 		return err
 	}
 	app.LauncherToken = owner.info.Token
+	if err = app.PublishStdioBridge(); err != nil {
+		return err
+	}
+	defer app.CloseStdioBridge()
 	app.Shutdown = stop
 	srv := &http.Server{Handler: app, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 16 << 10}
 	app.StartSystemMonitor(ctx)
