@@ -1,8 +1,8 @@
 # Security Policy
 
-## Prototype Notice
+## Status
 
-FolioChest (`0.6.1-dev`) is an experimental prototype and has **not** undergone an independent third-party cryptographic or security audit. Do not rely on it as your sole copy of critical credentials without keeping independent encrypted backups.
+FolioChest has **not** undergone an independent third-party cryptographic or security audit yet. Do not rely on it as your sole copy of critical credentials; keep independent encrypted backups.
 
 ## Reporting a Vulnerability
 

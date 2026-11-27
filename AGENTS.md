@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-FolioChest / 资料匣当前为 `0.6.1-dev` 原型。
+FolioChest / 资料匣是本地运行的单库加密资料库，开发进行中。
 
 阅读顺序：
 1. [README.md](README.md) / [README.zh.md](README.zh.md)：定位、构建与使用方式。

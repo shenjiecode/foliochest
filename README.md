@@ -10,7 +10,7 @@ A locally run encrypted vault managed via a browser UI, with per-key AI access c
 
 `key`, `description`, and an optional single-level `group` are stored in plaintext so AI agents can discover relevant entries first, while `value` and attachments are encrypted with AES-256-GCM. External tools (such as Nutstore/Syncthing) handle file sync; FolioChest handles encryption, versioning, conflict detection, and per-key permissions.
 
-> **Status (`0.6.1-dev`):** Working prototype. Windows runtime testing, native installer verification, and an independent security review have not been completed yet. Start with synthetic data and keep backups.
+> **Status:** Work in progress — see [SECURITY.md](SECURITY.md) for security status and known boundaries. Keep independent encrypted backups.
 
 ## Features
 
@@ -58,9 +58,9 @@ Closing the browser tab does not stop the background service; use the **Exit** b
 
 ## MCP Integration
 
-1. Start and unlock FolioChest, then copy the default **stdio** configuration from **Settings → MCP**. It uses `foliochest mcp` with the executable path and device directory; no manual token is needed.
-2. The stdio sidecar forwards to the running local application, never opens or unlocks a separate vault, and does not launch a browser. Start the application first. Each connection has isolated approvals.
-3. Only explicitly selecting **HTTP (advanced)** enables `/mcp` and token creation. Configure `Authorization: Bearer <token>`. Modes are exclusive; switching locks the vault and invalidates approvals. Older installations without a saved mode default to stdio; existing HTTP tokens are retained but inactive.
+1. Start and unlock FolioChest, then copy the default **stdio** configuration from **Settings → MCP**. It runs `foliochest mcp` with the executable path and device directory; no token is needed. Start the application first — the sidecar only forwards to it, and each connection has isolated approvals.
+2. Only explicitly selecting **HTTP (advanced)** enables `/mcp` and token creation. Configure `Authorization: Bearer <token>`. Modes are exclusive; switching locks the vault and invalidates pending approvals.
+3. Per-client approval mode: add `--approval web` to the stdio args (or send the `X-FolioChest-Approval: web` header on HTTP) to skip harness-side prompts; pending requests immediately return an `approval_url` for the local webpage. Only `auto` (default) and `web` are accepted; this changes where approval happens only — `ask`/`deny` policies and single-use approvals are unchanged.
 
 | Tool | Purpose |
 | --- | --- |
@@ -80,9 +80,9 @@ pi mcp add foliochest --url http://127.0.0.1:7463/mcp --bearer-token-env-var FOL
 
 ## Updating an Installed Application
 
-In **Settings → Vault**, check for updates, explicitly download and verify the matching installer, then confirm **Exit and update**. Windows opens the setup wizard; Linux prefers GNOME Software / KDE Discover, falling back to the default file association. If no package installer is configured, install the downloaded RPM/DEB manually. Same-architecture upgrades do not require uninstalling; vaults and device settings are retained.
+In **Settings → Vault**, check for updates, explicitly download and verify the matching installer, then confirm **Exit and update**. Save edits, export a backup and pause other-device writes first: FolioChest locks the vault and disconnects MCP before exiting. Windows opens the setup wizard; Linux prefers GNOME Software / KDE Discover, falling back to the default file association (install the downloaded RPM/DEB manually if no installer is configured). Same-architecture upgrades do not require uninstalling; vaults and device settings are retained. After installation, start it again from the system app menu and update all synced devices.
 
-Save edits, export a backup and pause other-device writes first. FolioChest locks the vault and disconnects MCP before exiting. After installation, start it again from the system app menu; update all synced devices. Packages are currently unsigned: SHA-256 verifies integrity, not publisher identity. Verified packages and helper diagnostics are retained under the device directory’s `updates/` for manual retry. No background checking, silent elevation/installation or automatic rollback is provided.
+Packages are unsigned: SHA-256 verifies integrity, not publisher identity (see [SECURITY.md](SECURITY.md)). Verified packages and helper diagnostics are retained under the device directory’s `updates/` for manual retry.
 
 ## Packaging & Cross-Compilation
 
@@ -108,7 +108,7 @@ make check
 
 Runs frontend type-checking, frontend unit tests, `go vet ./...`, and `go test -race ./...` (requires `npm --prefix web run build` first when running Go tests directly because `web/embed.go` embeds `web/dist/`).
 
-## Prototype Limits
+## Limits
 
 - Body max: `1 MiB`; attachments: up to `16` per entry, `2 MiB` each.
 - Write/read batch max: `20` entries, `8 MiB` serialized payload.

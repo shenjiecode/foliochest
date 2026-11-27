@@ -1,19 +1,9 @@
 # Local data and sensitive runtime state
-/data/
-/vaults/
 /.local/
-/runtime/
-/backups/
-/exports/
 .env
 .env.*
-!.env.example
-!.env.*.example
 *.pem
 *.key
-*.p12
-*.pfx
-*.kdbx
 *.log
 *.tmp
 
@@ -24,7 +14,6 @@
 coverage.*
 /bin/
 /dist/
-/node_modules/
 /web/node_modules/
 /web/dist/
 
