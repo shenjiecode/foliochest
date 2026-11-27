@@ -7,14 +7,16 @@ import type { Pending } from "@/lib/types";
 import { fileSize } from "@/lib/files";
 export function ApprovalNotice({
   count,
+  stale = false,
   onOpen,
 }: {
   count: number;
+  stale?: boolean;
   onOpen: () => void;
 }) {
   return count ? (
     <div className="approval-notice">
-      <IconButton label={count + " 个待处理授权"} onClick={onOpen}>
+      <IconButton label={count + " 个待处理授权" + (stale ? "（状态待确认）" : "")} onClick={onOpen}>
         <Bell />
       </IconButton>
       <span className="request-count" aria-hidden="true">
@@ -25,10 +27,14 @@ export function ApprovalNotice({
 }
 export function Approvals({
   requests,
+  loading = false,
+  error = "",
   onRefresh,
   onBack,
 }: {
   requests: Pending[];
+  loading?: boolean;
+  error?: string;
   onRefresh: () => void;
   onBack: () => void;
 }) {
@@ -36,12 +42,20 @@ export function Approvals({
     <section className="approvals-view scroll-region" aria-label="授权请求">
       <header className="page-heading">
         <h1>授权请求</h1>
-        <p className="field-note">通常在 AI 客户端确认，此处可备用处理。</p>
+        <p className="field-note">这是独立审批页面，可通过 /#approvals 直接访问。存在待审批请求时，铃铛会持续显示；打开此页不会批准或清除请求。</p>
+        <Button variant="outline" disabled={loading} onClick={onRefresh}>
+          {loading ? "正在刷新审批…" : "刷新审批状态"}
+        </Button>
       </header>
+      <ErrorNotice message={error} />
+      {error && !!requests.length && <Notice>当前展示上次成功读取的请求，状态可能已变化；请刷新后再确认。</Notice>}
+      {!requests.length && !loading && !error && (
+        <p className="field-note">请求可能已处理、超过五分钟、因客户端断连撤销或因锁库失效。若 AI 仍在等待，请保持连接并重新发起请求。</p>
+      )}
       {!requests.length ? (
         <EmptyState
           icon={<ShieldCheck />}
-          title="没有待处理的授权请求"
+          title={error ? "暂时无法确认待审批状态" : loading ? "正在读取授权请求" : "没有待处理的授权请求"}
           action={
             <Button variant="outline" onClick={onBack}>
               返回资料库

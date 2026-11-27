@@ -19,6 +19,7 @@ import {
   useTask,
 } from "@/lib/hooks";
 import { useBodySearch, useCatalog } from "@/lib/catalog";
+import { useApprovals } from "@/lib/approvals";
 import { filterEntries } from "@/lib/groups";
 import {
   type AppState,
@@ -184,6 +185,7 @@ function Workspace({
     [busy, setBusy] = useState(false),
     [editorEpoch, setEditorEpoch] = useState(0),
     [revision, setRevision] = useState(0);
+  const approvals = useApprovals();
   const catalog = useCatalog(view === "trash", revision),
     search = useBodySearch(
       query,
@@ -283,7 +285,8 @@ function Workspace({
       view={view}
       notice={
         <ApprovalNotice
-          count={catalog.requests.length}
+          count={approvals.requests.length}
+          stale={!!approvals.error}
           onOpen={() => go("approvals")}
         />
       }
@@ -374,7 +377,8 @@ function Workspace({
               <Menu />
             </IconButton>
             <ApprovalNotice
-              count={catalog.requests.length}
+              count={approvals.requests.length}
+              stale={!!approvals.error}
               onOpen={() => go("approvals")}
             />
           </div>
@@ -385,6 +389,12 @@ function Workspace({
                   connectionError || catalog.error || task.error || exit.error
                 }
               />
+            </div>
+          )}
+          {approvals.error && view !== "approvals" && (
+            <div className="workspace-warning">
+              <ErrorNotice message={approvals.error + "；已显示的数量为上次成功读取结果。"} />
+              <Button variant="outline" onClick={() => go("approvals")}>查看审批状态</Button>
             </div>
           )}
           {!!state.vault.issues.length && (
@@ -468,8 +478,10 @@ function Workspace({
           )}
           {view === "approvals" && (
             <Approvals
-              requests={catalog.requests}
-              onRefresh={refresh}
+              requests={approvals.requests}
+              loading={approvals.loading}
+              error={approvals.error}
+              onRefresh={() => { approvals.refresh(); refresh(); }}
               onBack={() => go("entries")}
             />
           )}

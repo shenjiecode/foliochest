@@ -279,7 +279,17 @@ func TestMCPNativeElicitation(t *testing.T) {
 			prompted := false
 			client := mcp.NewClient(&mcp.Implementation{Name: "interactive-test", Version: "1"}, &mcp.ClientOptions{
 				ElicitationHandler: func(_ context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+					if prompted {
+						t.Error("one operation prompted more than once")
+					}
 					prompted = true
+					schema, _ := json.Marshal(req.Params.RequestedSchema)
+					if strings.Contains(string(schema), `"default"`) {
+						t.Error("confirmation must not have an implicit default")
+					}
+					if !strings.Contains(req.Params.Message, "仅限本次") || strings.Contains(req.Params.Message, `"client_id"`) {
+						t.Error("expected readable bounded summary")
+					}
 					if strings.Contains(req.Params.Message, "SYNTHETIC_PRIVATE_VALUE") {
 						t.Error("read approval preview leaked the old value")
 					}

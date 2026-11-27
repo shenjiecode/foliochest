@@ -211,6 +211,42 @@ func (s *Service) Pending() []Pending {
 	}
 	return out
 }
+
+// Status observes completion without consuming a result or exposing its contents.
+func (s *Service) Status(clientID, id string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.expire()
+	p, ok := s.requests[id]
+	if !ok || p.ClientID != clientID {
+		return "", errors.New("请求不存在")
+	}
+	return p.State, nil
+}
+
+// CancelWaiting never overwrites a decision already made in another approval UI.
+func (s *Service) CancelWaiting(clientID, id string, timedOut bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.expire()
+	p, ok := s.requests[id]
+	if !ok || p.ClientID != clientID {
+		return errors.New("请求不存在")
+	}
+	if p.State != "pending" {
+		return nil
+	}
+	state, message := "cancelled", "审批已取消；未授权本次操作"
+	if timedOut {
+		state, message = "timed_out", "审批等待超时；未授权本次操作，请重新发起请求"
+	}
+	p.State = state
+	p.result = Result{RequestID: id, State: state, Message: message}
+	p.Reads, p.Changes = nil, nil
+	p.bufferedBytes = 0
+	return nil
+}
+
 func (s *Service) Preview(clientID, id string) (Pending, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

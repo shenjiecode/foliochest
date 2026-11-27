@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -138,25 +137,14 @@ func (s *Server) maybeElicit(ctx context.Context, req *mcp.CallToolRequest, clie
 	}
 	preview, err := s.Access.Preview(client.ID, out.RequestID)
 	if err != nil {
-		return out, err
+		return s.Access.Result(client.ID, out.RequestID)
 	}
-	details, _ := json.MarshalIndent(preview, "", "  ")
-	if len(details) > 12000 {
+	details, ok := approvalMessage(preview)
+	if !ok {
+		out.Message = "请在本地网页详细审阅并批准本次请求；当前请求不适合简短确认框。"
 		return out, nil
 	}
-	wait, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	answer, err := req.Session.Elicit(wait, &mcp.ElicitParams{Mode: "form", Message: "FolioChest / 资料匣 请求仅批准以下具体操作。读取会将明文交给当前 AI 客户端。\n" + string(details), RequestedSchema: map[string]any{"type": "object", "properties": map[string]any{"approve": map[string]any{"type": "boolean", "title": "同意本次操作", "default": false}}, "required": []string{"approve"}}})
-	if err != nil {
-		if wait.Err() != nil {
-			_ = s.Access.Decide(out.RequestID, false)
-			return access.Result{}, wait.Err()
-		}
-		return out, nil
-	}
-	accept := answer.Action == "accept" && answer.Content["approve"] == true
-	if err = s.Access.Decide(out.RequestID, accept); err != nil {
-		return access.Result{}, err
-	}
-	return s.Access.Result(client.ID, out.RequestID)
+	return s.waitForApproval(ctx, client.ID, out, func(wait context.Context) (*mcp.ElicitResult, error) {
+		return req.Session.Elicit(wait, &mcp.ElicitParams{Mode: "form", Message: details, RequestedSchema: map[string]any{"type": "object", "properties": map[string]any{"approve": map[string]any{"type": "boolean", "title": "批准本次操作", "description": "仅当你同意以上全部范围时选择是；拒绝或取消不会授权。"}}, "required": []string{"approve"}}})
+	})
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useClient } from "./hooks";
 import { errorText, Sequence, StaleRequest } from "./client";
-import type { Group, Pending, Summary } from "./types";
+import type { Group, Summary } from "./types";
 export function useCatalog(trash: boolean, revision: number) {
   const client = useClient(),
     sequence = useRef(new Sequence());
@@ -9,7 +9,6 @@ export function useCatalog(trash: boolean, revision: number) {
     trash,
     entries: [] as Summary[],
     groups: [] as Group[],
-    requests: [] as Pending[],
     tick: 0,
   });
   const [error, setError] = useState(""),
@@ -23,19 +22,17 @@ export function useCatalog(trash: boolean, revision: number) {
       pending = true;
       const ticket = sequence.current.next();
       try {
-        const [entries, groups, requests] = await Promise.all([
+        const [entries, groups] = await Promise.all([
           client.request<Summary[]>(
             "/api/entries" + (trash ? "?scope=trash" : ""),
           ),
           client.request<Group[]>("/api/groups"),
-          client.request<Pending[]>("/api/approvals"),
         ]);
         if (live && sequence.current.current(ticket)) {
           setSnapshot((before) => ({
             trash,
             entries: entries || [],
             groups: groups || [],
-            requests: requests || [],
             tick: before.tick + 1,
           }));
           setError("");
