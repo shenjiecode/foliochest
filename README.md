@@ -18,7 +18,7 @@ A locally run encrypted vault managed via a browser UI, with per-key AI access c
 - **Local Web UI + Single Binary**: Go backend with an embedded React + TypeScript + shadcn/ui web app; no runtime Node.js or external CDN required.
 - **Plaintext Discovery, Encrypted Payloads**: Argon2id (`64 MiB`, 3 iterations) key derivation + AES-256-GCM encryption for bodies and attachments.
 - **Content & Organization**: Plaintext, Markdown (with safe preview, no HTML/remote image loading), JSON editing assistance, encrypted attachments, single-level groups, history browsing/restore, conflict merging, and soft-delete trash.
-- **Per-Key MCP Permissions**: Independent `allow` / `ask` / `deny` policies for read and replace per key, with client bearer tokens, session form elicitation, and fallback webpage approval.
+- **Per-Key MCP Permissions**: Independent `allow` / `ask` / `deny` policies for read and replace per key, with client bearer tokens, legacy session form elicitation, MCP `2026-07-28` multi-round-trip read approval, and fallback webpage approval.
 - **Backup & Recovery**: Full encrypted ZIP backup export and validated restore into a new/empty directory.
 - **Device Convenience & Locking**: Optional OS credential storage (Windows Credential Manager / Linux Secret Service), browser remember-me (90 days), user-level login autostart, idle auto-lock, and system lock/sleep event locking.
 

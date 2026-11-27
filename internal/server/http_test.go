@@ -299,7 +299,7 @@ func TestMCPNativeElicitation(t *testing.T) {
 					return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"approve": true}}, nil
 				},
 			})
-			session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: b.url + "/mcp", HTTPClient: &http.Client{Transport: bearerTransport{token}}, MaxRetries: -1}, nil)
+			session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: b.url + "/mcp", HTTPClient: &http.Client{Transport: bearerTransport{token}}, MaxRetries: -1}, &mcp.ClientSessionOptions{ProtocolVersion: "2025-11-25"})
 			if err != nil {
 				t.Fatal(err)
 			}
