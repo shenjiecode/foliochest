@@ -112,6 +112,17 @@ type bridgeReader struct {
 	io.Closer
 }
 
+// ParseApprovalMode selects "auto" for empty input; anything other than auto/web fails closed.
+func ParseApprovalMode(raw string) (string, error) {
+	if raw == "" {
+		return "auto", nil
+	}
+	if raw != "auto" && raw != "web" {
+		return "", errors.New("无效的审批方式，仅支持 auto 或 web")
+	}
+	return raw, nil
+}
+
 func (s *Server) serveStdioBridge(w http.ResponseWriter, r *http.Request) {
 	st := s.mcpTransport
 	if r.Method != "GET" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-FolioChest-Stdio")), []byte(st.token)) != 1 {
@@ -120,6 +131,11 @@ func (s *Server) serveStdioBridge(w http.ResponseWriter, r *http.Request) {
 	}
 	if !strings.EqualFold(r.Header.Get("Upgrade"), "foliochest-stdio") || !strings.EqualFold(r.Header.Get("Connection"), "upgrade") {
 		apiError(w, errors.New("stdio bridge requires upgrade"), 400)
+		return
+	}
+	approvalMode, err := ParseApprovalMode(r.Header.Get("X-FolioChest-Approval"))
+	if err != nil {
+		apiError(w, err, 400)
 		return
 	}
 	st.mu.Lock()
@@ -156,7 +172,7 @@ func (s *Server) serveStdioBridge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Raw bidirectional MCP preserves client capabilities and harness elicitation.
-	session, err := s.mcpServer(client).Connect(context.Background(), &mcp.IOTransport{Reader: bridgeReader{rw.Reader, conn}, Writer: conn, MaxLineLength: vault.MaxFileBytes}, nil)
+	session, err := s.mcpServer(client, approvalMode).Connect(context.Background(), &mcp.IOTransport{Reader: bridgeReader{rw.Reader, conn}, Writer: conn, MaxLineLength: vault.MaxFileBytes}, nil)
 	if err != nil {
 		return
 	}

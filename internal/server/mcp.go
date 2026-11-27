@@ -44,6 +44,19 @@ type resultArgs struct {
 	RequestID string `json:"request_id"`
 }
 
+// Per-connection approval mode; never persisted to clients.json or mcp-settings.json.
+type approvalModeKey struct{}
+
+func withApprovalMode(ctx context.Context, mode string) context.Context {
+	return context.WithValue(ctx, approvalModeKey{}, mode)
+}
+func approvalModeFromContext(ctx context.Context) string {
+	if mode, _ := ctx.Value(approvalModeKey{}).(string); mode == "web" {
+		return "web"
+	}
+	return ""
+}
+
 func (s *Server) serveMCP(w http.ResponseWriter, r *http.Request) {
 	if s.mcpMode() != "http" {
 		http.NotFound(w, r)
@@ -59,6 +72,12 @@ func (s *Server) serveMCP(w http.ResponseWriter, r *http.Request) {
 		apiError(w, vault.ErrDenied, 401)
 		return
 	}
+	approvalMode, err := ParseApprovalMode(r.Header.Get("X-FolioChest-Approval"))
+	if err != nil {
+		apiError(w, err, 400)
+		return
+	}
+	r = r.WithContext(withApprovalMode(r.Context(), approvalMode))
 	s.mu.Lock()
 	handler := s.mcpHandlers[client.ID]
 	if handler == nil {
@@ -69,7 +88,7 @@ func (s *Server) serveMCP(w http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(w, r)
 }
 func (s *Server) newMCP(client Client) http.Handler {
-	server := s.mcpServer(client)
+	server := s.mcpServer(client, "")
 	getServer := func(*http.Request) *mcp.Server { return server }
 	legacy := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{SessionTimeout: 15 * time.Minute, MaxRequestBodyBytes: vault.MaxFileBytes})
 	modern := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{Stateless: true, MaxRequestBodyBytes: vault.MaxFileBytes})
@@ -81,7 +100,16 @@ func (s *Server) newMCP(client Client) http.Handler {
 		}
 	})
 }
-func (s *Server) mcpServer(client Client) *mcp.Server {
+
+// "web" only suppresses harness-side elicitation; it never bypasses ask/deny or per-key policies.
+func effectiveApprovalMode(ctx context.Context, connMode string) string {
+	if connMode == "web" || approvalModeFromContext(ctx) == "web" {
+		return "web"
+	}
+	return "auto"
+}
+
+func (s *Server) mcpServer(client Client, connApproval string) *mcp.Server {
 	closed := false
 	continuations := &readContinuations{}
 	server := mcp.NewServer(&mcp.Implementation{Name: "foliochest", Version: buildinfo.Version}, &mcp.ServerOptions{
@@ -120,6 +148,10 @@ func (s *Server) mcpServer(client Client) *mcp.Server {
 		if err != nil {
 			return nil, out, err
 		}
+		if out.State == "pending" && effectiveApprovalMode(ctx, connApproval) == "web" {
+			out.Message = "当前客户端已配置为仅本地网页审批，请在本地网页批准本次请求，再查询结果。"
+			return nil, out, nil
+		}
 		if req.ProtocolVersion() >= "2026-07-28" {
 			return s.beginRoundTrip(req, client, args, out, continuations)
 		}
@@ -134,6 +166,10 @@ func (s *Server) mcpServer(client Client) *mcp.Server {
 		out, err := s.Access.Replace(client.ID, client.Name, changes)
 		if err != nil {
 			return nil, out, err
+		}
+		if out.State == "pending" && effectiveApprovalMode(ctx, connApproval) == "web" {
+			out.Message = "当前客户端已配置为仅本地网页审批，请在本地网页审阅并批准本次请求，再查询结果。"
+			return nil, out, nil
 		}
 		out, err = s.maybeElicit(ctx, req, client, out)
 		return nil, out, err

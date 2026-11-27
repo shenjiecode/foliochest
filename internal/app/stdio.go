@@ -15,6 +15,7 @@ import (
 
 	"github.com/shenjiecode/keyfolio/internal/fsutil"
 	"github.com/shenjiecode/keyfolio/internal/platform"
+	"github.com/shenjiecode/keyfolio/internal/server"
 )
 
 // The sidecar never opens the vault, starts a browser, or reads launcher credentials.
@@ -26,17 +27,22 @@ func runStdio(args []string) error {
 	flags := flag.NewFlagSet("foliochest mcp", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	device := flags.String("device-dir", filepath.Join(config, "keyfolio"), "本机配置目录")
+	approval := flags.String("approval", "auto", "审批方式：auto（优先客户端原生弹窗）或 web（仅本地网页审批）")
 	if err = flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return errors.New("不支持额外参数")
 	}
+	approvalMode, err := server.ParseApprovalMode(*approval)
+	if err != nil {
+		return err
+	}
 	*device, err = platform.Canonical(*device)
 	if err != nil {
 		return err
 	}
-	conn, reader, err := connectStdio(*device)
+	conn, reader, err := connectStdio(*device, approvalMode)
 	if err != nil {
 		return err
 	}
@@ -49,7 +55,7 @@ func runStdio(args []string) error {
 	}
 	return err
 }
-func connectStdio(device string) (net.Conn, *bufio.Reader, error) {
+func connectStdio(device, approval string) (net.Conn, *bufio.Reader, error) {
 	fail := errors.New("无法连接本机 stdio MCP；请先启动资料匣，在设置中选择 stdio，并在网页解锁资料库")
 	raw, err := fsutil.ReadBounded(filepath.Join(device, "mcp-stdio.json"), 4096)
 	if err != nil {
@@ -72,6 +78,9 @@ func connectStdio(device string) (net.Conn, *bufio.Reader, error) {
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Upgrade", "foliochest-stdio")
 	req.Header.Set("X-FolioChest-Stdio", info.Token)
+	if approval == "web" {
+		req.Header.Set("X-FolioChest-Approval", "web")
+	}
 	if err = req.Write(conn); err != nil {
 		conn.Close()
 		return nil, nil, fail
