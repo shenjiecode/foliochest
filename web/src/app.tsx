@@ -257,13 +257,13 @@ function Workspace({
     refresh();
   };
   const lock = () =>
-    void guard(
-      () =>
-        void task.run(async (ctx) => {
-          await ctx.request("/api/vault/lock", {});
-          await ctx.refresh();
-        }),
-    );
+    void guard(() => {
+      setMobile(false);
+      void task.run(async (ctx) => {
+        await ctx.request("/api/vault/lock", {});
+        await ctx.refresh();
+      });
+    });
   const createEntry = (group = "") =>
     void guard(() => {
       setView("entries");
@@ -293,7 +293,12 @@ function Workspace({
       onGo={go}
       onNew={() => createEntry()}
       onLock={lock}
-      onQuit={() => void guard(() => void exit.quit())}
+      onQuit={() =>
+        void guard(() => {
+          setMobile(false);
+          void exit.quit();
+        })
+      }
     >
       {(view === "entries" || view === "trash") && (
         <EntryList

@@ -1,11 +1,12 @@
 import { createContext, useContext } from "react";
 import { useConfirm } from "@/components/forms";
-import { useTask } from "@/lib/hooks";
+import { useClient, useTask } from "@/lib/hooks";
 
 export const ExitContext = createContext<(message?: string) => void>(() => {});
 export function useQuit() {
   const confirm = useConfirm();
   const task = useTask();
+  const client = useClient();
   const exited = useContext(ExitContext);
   const quit = async () => {
     if (
@@ -19,10 +20,17 @@ export function useQuit() {
       }))
     )
       return;
-    await task.run(
-      (ctx) => ctx.request("/api/app/quit", { confirmed: true }),
-      () => exited(),
-    );
+    await task.run(async (ctx) => {
+      const resume = client.pauseRefresh();
+      try {
+        await ctx.request("/api/app/quit", { confirmed: true });
+        exited();
+      } catch (error) {
+        resume();
+        if (ctx.current()) await ctx.refresh();
+        throw error;
+      }
+    });
   };
   return { quit, busy: task.busy, error: task.error };
 }

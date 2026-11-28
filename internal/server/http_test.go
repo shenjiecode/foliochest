@@ -346,3 +346,23 @@ func TestClientTokensPersistOnlyAsHashes(t *testing.T) {
 		}
 	}
 }
+
+func TestQuitLocksAndShutsDown(t *testing.T) {
+	b := setupHTTP(t)
+	b.seed()
+	stopped, lockedAtShutdown := false, false
+	b.app.Shutdown = func() {
+		lockedAtShutdown = b.app.Vault.Locked()
+		stopped = true
+	}
+	if code, _ := b.request("POST", "/api/app/quit", map[string]any{"confirmed": false}, b.csrf); code != 400 || stopped || b.app.Vault.Locked() {
+		t.Fatalf("unconfirmed quit should fail without locking or stopping: code=%d stopped=%v locked=%v", code, stopped, b.app.Vault.Locked())
+	}
+	code, body := b.request("POST", "/api/app/quit", map[string]any{"confirmed": true}, b.csrf)
+	var out struct {
+		OK bool `json:"ok"`
+	}
+	if code != 200 || json.Unmarshal(body, &out) != nil || !out.OK || !stopped || !lockedAtShutdown {
+		t.Fatalf("confirmed quit should lock before shutdown and return ok: code=%d body=%s stopped=%v lockedAtShutdown=%v", code, body, stopped, lockedAtShutdown)
+	}
+}

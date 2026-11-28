@@ -151,7 +151,7 @@ export class SessionClient {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       this.assert(epoch);
-      if (response.status === 401) {
+      if (response.status === 401 && this.refreshPauses === 0) {
         this.invalidate();
         void this.refresh();
       }

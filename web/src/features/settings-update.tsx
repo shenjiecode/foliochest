@@ -47,7 +47,7 @@ export function UpdateSettings({ version }: { version: string }) {
       resume();
       await ctx.refresh("未能启动安装器，可手动运行已下载的安装包。");
       throw error;
-    } finally { resume(); }
+    }
   });
   return (
     <>

@@ -492,6 +492,88 @@ try {
   await act(async () => resourceRoot.unmount());
   resourceHost.remove();
 }
+// Quitting from the unlocked workspace must exit directly even if concurrent
+// polls observe lock/401 while /api/app/quit is in flight.
+const quitHost = document.createElement("div");
+document.body.append(quitHost);
+const quitRoot = createRoot(quitHost);
+let quitState = structuredClone(state);
+let quitPending: ReturnType<typeof deferred<Response>> | null = null;
+let quitCalls = 0;
+let quitStateCalls = 0;
+let pollDuringQuit: ReturnType<typeof deferred<Response>> | null = null;
+const quitClient = new SessionClient(async (path, options) => {
+  if (path === "/api/state") {
+    quitStateCalls++;
+    return json(quitState);
+  }
+  if (path === "/api/entries") {
+    if (quitPending) {
+      pollDuringQuit = deferred<Response>();
+      return pollDuringQuit.promise;
+    }
+    return json([]);
+  }
+  if (path === "/api/groups" || path === "/api/approvals") return json([]);
+  if (path === "/api/app/quit") {
+    quitCalls++;
+    assert.deepEqual(JSON.parse(String(options?.body)), { confirmed: true });
+    if (quitCalls === 1) {
+      return json({ error: "另一个网页操作尚未完成，请稍后重试" }, 409);
+    }
+    quitState = { ...quitState, authenticated: false };
+    quitPending = deferred<Response>();
+    return quitPending.promise;
+  }
+  throw new Error("Unexpected quit test route " + path);
+});
+try {
+  await act(async () =>
+    quitRoot.render(
+      <TooltipProvider>
+        <App client={quitClient} />
+      </TooltipProvider>,
+    ),
+  );
+  const clickWorkspaceQuit = async () => {
+    const quitTrigger = [
+      ...quitHost.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((b) => b.getAttribute("aria-label") === "退出资料匣")!;
+    assert.ok(quitTrigger, "Missing workspace quit button");
+    await act(async () => quitTrigger.click());
+    const quitConfirm = [
+      ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ].find((b) => b.textContent?.trim() === "退出")!;
+    assert.ok(quitConfirm, "Missing quit confirm button");
+    await act(async () => quitConfirm.click());
+  };
+  // Failed quit (409) must resume refresh polling and show the error.
+  await clickWorkspaceQuit();
+  assert.equal(quitCalls, 1);
+  assert.ok(quitHost.textContent?.includes("另一个网页操作尚未完成"));
+  const stateCallsAfterFail = quitStateCalls;
+  await act(async () => {
+    await (globalThis as any).tickIntervals();
+  });
+  assert.ok(quitStateCalls > stateCallsAfterFail, "polling must resume after failed quit");
+  // Confirmed quit must exit directly even with concurrent locked /api/state and 401 /api/entries.
+  await clickWorkspaceQuit();
+  assert.equal(quitCalls, 2);
+  await act(async () => {
+    await (globalThis as any).tickIntervals();
+  });
+  assert.ok(pollDuringQuit, "expected concurrent /api/entries poll during quit");
+  await act(async () =>
+    pollDuringQuit!.resolve(json({ error: "locked" }, 401)),
+  );
+  assert.ok(!quitHost.textContent?.includes("解锁资料匣"));
+  await act(async () => quitPending!.resolve(json({ ok: true })));
+  assert.ok(quitHost.textContent?.includes("资料匣已退出"));
+  assert.ok(!quitHost.textContent?.includes("解锁资料匣"));
+} finally {
+  await act(async () => quitRoot.unmount());
+  quitHost.remove();
+}
 console.log(
-  "React API flows, draft/version guards, token/CSRF cleanup, late files/entries/searches, history and resource-identity tests passed.",
+  "React API flows, draft/version guards, token/CSRF cleanup, late files/entries/searches, history, workspace quit and resource-identity tests passed.",
 );
