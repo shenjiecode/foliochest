@@ -9,7 +9,7 @@ const nonce = document.querySelector<HTMLMetaElement>(
   'meta[name="style-nonce"]',
 )?.content;
 if (!nonce || !/^[a-f0-9]{48}$/.test(nonce)) {
-  root.textContent = "页面安全配置缺失，请重新打开本机资料库网页。";
+  root.textContent = "页面加载异常，请重新打开资料匣。";
 } else {
   setNonce(nonce);
   const client = new SessionClient();

@@ -635,11 +635,6 @@
   font-weight: 500;
   font-size: 17px;
 }
-.empty-state p {
-  color: var(--muted-foreground);
-  font-size: 13px;
-  max-width: 340px;
-}
 .empty-state [data-slot="button"] {
   margin-top: 12px;
 }

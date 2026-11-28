@@ -16,7 +16,6 @@ export async function readFile(
   const bytes = new Uint8Array(await file.arrayBuffer());
   try {
     assertCurrent();
-    if (bytes.length > max) throw new Error("文件过大");
     return encodeBase64(bytes);
   } finally {
     bytes.fill(0);

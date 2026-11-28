@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/shenjiecode/keyfolio/internal/buildinfo"
 	"github.com/shenjiecode/keyfolio/internal/updater"
@@ -133,7 +132,7 @@ func (s *Server) checkUpdate(w http.ResponseWriter, r *http.Request) {
 		apiError(w, errors.New("请确认主动连接 GitHub 检查更新"), 400)
 		return
 	}
-	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := releaseClient()
 	result, err := latestRelease(r.Context(), client, buildinfo.Version)
 	if err != nil {
 		apiError(w, err, 502)

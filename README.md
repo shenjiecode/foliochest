@@ -14,7 +14,7 @@ A locally run encrypted vault managed via a browser UI, with per-key AI access c
 
 ## Features
 
-- **One Vault, One Master Password**: Bind one vault per local instance and organize it with groups. Locking stops both web and MCP data access. Maintenance supports location migration and same-vault recovery, not switching libraries.
+- **One Vault, One Master Password**: Bind one vault per local instance and organize it with groups. Locking stops both web and MCP data access. Maintenance supports location migration and same-vault recovery.
 - **Local Web UI + Single Binary**: Go backend with an embedded React + TypeScript + shadcn/ui web app; no runtime Node.js or external CDN required.
 - **Plaintext Discovery, Encrypted Payloads**: Argon2id (`64 MiB`, 3 iterations) key derivation + AES-256-GCM encryption for bodies and attachments.
 - **Content & Organization**: Plaintext, Markdown (with safe preview, no HTML/remote image loading), JSON editing assistance, encrypted attachments, single-level groups, history browsing/restore, conflict merging, and soft-delete trash.
@@ -32,7 +32,7 @@ npm --prefix web run build
 go run ./cmd/foliochest
 ```
 
-Open `http://127.0.0.1:7463/` to create, attach, or restore your single vault on first use; subsequent visits use its master password. Location migration retains the original files and copies local empty groups. Independent empty groups are not included in ZIP backups yet.
+Open `http://127.0.0.1:7463/` to create, attach, or restore your single vault on first use; subsequent visits use its master password. Location migration retains the original files and copies local empty groups.
 
 Build a standalone binary:
 
@@ -60,7 +60,7 @@ Closing the browser tab does not stop the background service; use the **Exit** b
 
 1. Start and unlock FolioChest, then copy the default **stdio** configuration from **Settings → MCP**. It runs `foliochest mcp` with the executable path and device directory; no token is needed. Start the application first — the sidecar only forwards to it, and each connection has isolated approvals.
 2. Only explicitly selecting **HTTP (advanced)** enables `/mcp` and token creation. Configure `Authorization: Bearer <token>`. Modes are exclusive; switching locks the vault and invalidates pending approvals.
-3. Per-client approval mode: add `--approval web` to the stdio args (or send the `X-FolioChest-Approval: web` header on HTTP) to skip harness-side prompts; pending requests immediately return an `approval_url` for the local webpage. Only `auto` (default) and `web` are accepted; this changes where approval happens only — `ask`/`deny` policies and single-use approvals are unchanged.
+3. Per-client approval mode: add `--approval web` to the stdio args (or send the `X-FolioChest-Approval: web` header on HTTP) to route approvals to the local webpage — pending requests immediately return an `approval_url`. This suits clients whose harness has no native MCP elicitation UI (e.g. Antigravity CLI). Only `auto` (default) and `web` are accepted.
 
 | Tool | Purpose |
 | --- | --- |
@@ -80,9 +80,9 @@ pi mcp add foliochest --url http://127.0.0.1:7463/mcp --bearer-token-env-var FOL
 
 ## Updating an Installed Application
 
-In **Settings → Vault**, check for updates, explicitly download and verify the matching installer, then confirm **Exit and update**. Save edits, export a backup and pause other-device writes first: FolioChest locks the vault and disconnects MCP before exiting. Windows opens the setup wizard; Linux prefers GNOME Software / KDE Discover, falling back to the default file association (install the downloaded RPM/DEB manually if no installer is configured). Same-architecture upgrades do not require uninstalling; vaults and device settings are retained. After installation, start it again from the system app menu and update all synced devices.
+In **Settings → Vault**, check for updates, download and verify the matching installer, then confirm **Exit and update**. Save edits, export a backup and pause other-device writes first — the vault is locked and MCP disconnects before exit. Windows opens the setup wizard; Linux prefers GNOME Software / KDE Discover, falling back to the default file association (install the RPM/DEB manually if no installer is configured). Same-architecture upgrades need no uninstalling; vaults and device settings are retained. Afterwards, start the app again from the system menu and update all synced devices.
 
-Packages are unsigned: SHA-256 verifies integrity, not publisher identity (see [SECURITY.md](SECURITY.md)). Verified packages and helper diagnostics are retained under the device directory’s `updates/` for manual retry.
+Packages are unsigned: SHA-256 verifies integrity, not publisher identity (see [SECURITY.md](SECURITY.md)). Verified packages and diagnostics are kept under the device directory’s `updates/` for manual retry.
 
 ## Packaging & Cross-Compilation
 

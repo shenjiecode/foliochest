@@ -3,16 +3,16 @@
 Windows
   x64 对应 amd64；x86 为实验性 32 位构建。
   双击 setup.exe 安装到当前用户的 LocalAppData/Programs/FolioChest（无需管理员权限）。
-  安装不自动启动程序或启用登录自启动；x86 与 x64 切换前请先卸载旧版。
-  当前无代码签名，安装前请核对来源与 SHA-256；升级/卸载前请在网页退出资料匣。
+  x86 与 x64 切换前请先卸载旧版。
+  安装前请核对来源与 SHA-256（当前未做代码签名）；升级/卸载前请在网页退出资料匣。
 
 Linux
   Debian/Ubuntu：sudo apt install ./foliochest-<版本>-linux-<架构>.deb
   Fedora：sudo dnf install ./foliochest-<版本>-linux-<架构>.rpm
-  安装后从应用菜单启动“资料匣”，不会创建系统服务或启用登录自启动。
+  安装后从应用菜单启动“资料匣”。
   升级/卸载前请在网页退出资料匣并关闭登录自启动；卸载使用 apt remove / dnf remove foliochest。
   从免安装版迁移时，先运行旧目录的 sh install-shortcut.sh --remove 移除用户级入口。
 
 数据与目录
-  安装包不创建、不携带也不搬动资料库；卸载保留用户资料与设备配置。
+  卸载仅移除程序，资料库与本机配置保留。
   关闭浏览器标签页不会退出后台服务；退出请使用网页中的“退出资料匣”。

@@ -85,7 +85,7 @@ export function Properties({
           ))}
           <IconButton
             type="button"
-            label="Key、描述和分组为明文，请勿填写秘密。"
+            label="Key、描述和分组以明文保存，请勿填写敏感信息。"
           >
             <Info />
           </IconButton>
@@ -173,7 +173,7 @@ export function Attachments({
             />
           </label>
           <p className="attachment-limits">
-            每个最多 2 MiB，每条最多 16 个；添加后需保存。下载文件为明文。
+            单个最大 2 MiB，最多 16 个，保存后生效。
           </p>
         </>
       )}

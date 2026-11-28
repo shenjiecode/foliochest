@@ -76,9 +76,7 @@ export function EntryManagement({
                 kind === "delete",
               );
               client.notice(
-                kind === "delete"
-                  ? "已移到回收站，历史和附件保留。"
-                  : "Key 已重命名。",
+                kind === "delete" ? "已移到回收站。" : "Key 已重命名。",
               );
               onClose();
             },
@@ -87,8 +85,8 @@ export function EntryManagement({
       >
         <Notice>
           {kind === "delete"
-            ? "删除会保留历史、附件和名称占用，可从删除前的版本恢复。这不是安全擦除，也不会释放磁盘空间。"
-            : "正文、附件、分组和权限不变。旧 Key 不再指向此条目，旧审批会失效。"}
+            ? "移到回收站后，仍可从历史版本中恢复。"
+            : "重命名仅修改 Key，正文、附件和权限保持不变。"}
         </Notice>
         <p className="path-value">{entry.key}</p>
         {kind === "rename" && (
@@ -149,7 +147,7 @@ export function GroupManagement({
         if (
           !(await confirm({
             title: remove ? "解除分组？" : "确认移动分组？",
-            description: `将 ${entries.length} 条资料移到「${groupLabel(next)}」。${reviewed ? `包含回收站 ${reviewed.deleted_count} 条。` : ""}正文、附件、Key 和权限不变，旧审批会失效。`,
+            description: `将 ${entries.length} 条资料移到「${groupLabel(next)}」${reviewed && reviewed.deleted_count ? `（含回收站 ${reviewed.deleted_count} 条）` : ""}。`,
           }))
         )
           return;
@@ -207,9 +205,9 @@ export function GroupManagement({
         <fieldset disabled={task.busy} className="field-grid">
           <Notice>
             {source
-              ? `${source.count} 条资料，${source.deleted_count} 条在回收站。整组操作绑定此时查看的完整成员及版本。`
-              : "每次最多 20 条，超限整体拒绝，不自动拆批。"}
-            {reviewed?.blocked ? " 组内有不可用条目，请先处理。" : ""}
+              ? `${source.count} 条资料${source.deleted_count ? `（含回收站 ${source.deleted_count} 条）` : ""}。`
+              : "每次最多移动 20 条资料。"}
+            {reviewed?.blocked ? " 组内有冲突或不可用条目，请先处理。" : ""}
           </Notice>
           <div className="selected-keys">
             {(reviewed?.members || selection).map((m) => (

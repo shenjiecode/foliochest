@@ -82,7 +82,7 @@ func (v *Vault) Lock() { v.mu.Lock(); defer v.mu.Unlock(); v.lock() }
 func (v *Vault) SelectDirectory(root string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if !filepath.IsAbs(root) || strings.TrimSpace(root) == "" {
+	if !filepath.IsAbs(root) {
 		return errors.New("请输入绝对目录路径")
 	}
 	if info, err := os.Stat(root); err == nil && !info.IsDir() {

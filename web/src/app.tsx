@@ -41,7 +41,7 @@ export function App({ client }: { client: SessionClient }) {
   const [exited, setExited] = useState<string | null>(null);
   return (
     <ClientContext value={client}>
-      <ExitContext value={(message) => setExited(message || "可以关闭此页面。下次点击应用图标重新启动。")}>
+      <ExitContext value={(message) => setExited(message || "可以关闭此页面。")}>
         {exited ? (
           <main className="lock-screen">
             <header className="lock-topbar">
@@ -308,9 +308,7 @@ function Workspace({
                 "foliochest.show-empty-groups",
                 String(value),
               );
-            } catch {
-              /* Preference remains available for this session. */
-            }
+            } catch {}
           }}
           onGroupCreated={(name) => {
             setRecentGroups((before) => new Set([...before, name]));
@@ -393,7 +391,7 @@ function Workspace({
           )}
           {approvals.error && view !== "approvals" && (
             <div className="workspace-warning">
-              <ErrorNotice message={approvals.error + "；已显示的数量为上次成功读取结果。"} />
+              <ErrorNotice message={approvals.error + "（显示上次成功读取的结果）"} />
               <Button variant="outline" onClick={() => go("approvals")}>查看审批状态</Button>
             </div>
           )}

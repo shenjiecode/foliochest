@@ -212,7 +212,7 @@ export function EntryEditor({
         dragDepth.current = 0;
         setDragging(false);
         if (!canAdd) {
-          client.notice("请进入编辑状态并等待当前操作完成后添加附件。");
+          client.notice("请先进入编辑状态，并等待当前操作完成。");
           return;
         }
         if (
@@ -242,7 +242,7 @@ export function EntryEditor({
           <strong>
             {canAdd ? "松开以添加附件" : "请先进入编辑状态或等待当前操作完成"}
           </strong>
-          <span>文件加入草稿，保存后写入资料库</span>
+          <span>文件将加入当前草稿，保存后生效</span>
         </div>
       )}
       <header className="entry-heading">
@@ -338,10 +338,8 @@ export function EntryEditor({
       )}
       {stale && (
         <Notice>
-          当前版本已变化。
-          {dirty.current
-            ? "未保存的草稿已保留，保存仍会校验原版本。"
-            : "正在重新读取；下方内容是先前版本。"}
+          资料已被更新。
+          {dirty.current ? "未保存的草稿已保留。" : "正在重新加载最新版本…"}
         </Notice>
       )}
       {unavailable ? (

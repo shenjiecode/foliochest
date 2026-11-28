@@ -101,12 +101,6 @@ func (v *Vault) backup() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// RestoreBackup validates ciphertext and the password in an isolated staging
-// directory, then installs it into a new/empty directory.
-func RestoreBackup(archive []byte, destination, password string) error {
-	return RestoreBackupForVault(archive, destination, password, "")
-}
-
 // Expected identity is checked after decryption, before publishing the destination.
 func RestoreBackupForVault(archive []byte, destination, password, expectedID string) error {
 	if len(archive) > MaxBackupBytes {

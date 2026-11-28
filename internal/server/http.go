@@ -191,8 +191,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &input) {
 			return
 		}
-		if !input.Confirmed || s.Shutdown == nil {
-			apiError(w, errors.New("无法退出：需要明确确认且程序支持退出"), 400)
+		if !input.Confirmed {
+			apiError(w, errors.New("请先确认退出"), 400)
+			return
+		}
+		if s.Shutdown == nil {
+			apiError(w, errors.New("当前模式不支持网页退出"), 400)
 			return
 		}
 		s.Access.Lock()

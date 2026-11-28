@@ -10,4 +10,4 @@
 
 需重新生成时，安装 Pillow 后运行 `python3 packaging/assets/generate-icons.py`。正常网页构建与打包使用已生成资源，不依赖 Python/Pillow。
 
-`web/scripts/build.mjs` 将网页资源复制进 `web/dist/`，随 Go 程序嵌入；桌面打包沿用同一组 PNG/ICO。旧分发包或已经安装的程序需要更新后才会使用新图标，本步骤不登记或修改开发机的应用菜单/桌面快捷方式。
+`web/scripts/build.mjs` 将网页资源复制进 `web/dist/`，随 Go 程序嵌入；桌面打包沿用同一组 PNG/ICO。

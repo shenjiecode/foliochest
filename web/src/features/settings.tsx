@@ -52,7 +52,7 @@ export function Settings({
             </SettingRow>
             <SettingRow
               title="加密备份"
-              note="包含公开元信息、加密正文、附件和全部历史，不含本机凭据。"
+              note="导出完整的加密 ZIP 备份（含正文、附件和历史）。"
             >
               <Button
                 variant="outline"
@@ -67,7 +67,7 @@ export function Settings({
                           new Date().toISOString().slice(0, 10) +
                           ".zip",
                       );
-                      client.notice("备份已生成，请保留下载文件与主密码。");
+                      client.notice("备份已下载，请妥善保存文件和主密码。");
                     },
                   )
                 }
@@ -78,7 +78,7 @@ export function Settings({
             <ErrorNotice message={task.error} />
             <SettingRow
               title="从备份恢复"
-              note="仅恢复本库备份；校验后使用恢复目录，原目录保留，不覆盖已有资料。恢复后需重新解锁。"
+              note="将备份恢复到新目录，原目录保持不变。"
             >
               <Button variant="outline" onClick={() => onOpen("restore")}>
                 恢复
@@ -92,7 +92,7 @@ export function Settings({
           <section className="settings-section">
             <SettingRow
               title="主密码"
-              note="进入资料匣与解锁资料使用同一个密码。变更后锁定并关闭本机设备授权。"
+              note="修改后将锁定资料库，需使用新密码重新解锁。"
             >
               <Button variant="outline" onClick={() => setDialog("password")}>
                 变更主密码
@@ -163,7 +163,7 @@ function SecurityForm({
       <fieldset disabled={task.busy}>
         <SettingRow
           title="网页空闲锁定"
-          note="0 为关闭。只计算网页操作，轮询和 MCP 不续期。"
+          note="无操作超过设定时间后自动锁定，0 为关闭。"
         >
           <Input
             aria-label="空闲锁定分钟"
@@ -178,7 +178,7 @@ function SecurityForm({
         </SettingRow>
         <SettingRow
           title="系统事件锁定"
-          note="系统锁屏、休眠或监测中断时锁定，默认开启。"
+          note="锁屏或休眠时自动锁定。"
         >
           <Switch
             aria-label="系统事件锁定"
@@ -187,9 +187,6 @@ function SecurityForm({
           />
         </SettingRow>
         <p className="settings-footnote">{state.system.message}</p>
-        <p className="field-note">
-          通知处理存在延迟；进程停顿超过 15 秒也会锁定。不承诺彻底擦除内存。
-        </p>
         <Button type="submit" className="section-action">
           {task.busy ? "正在保存…" : "保存锁定设置"}
         </Button>
@@ -236,8 +233,8 @@ function PasswordDialog({
     >
       <Notice>
         {upgrade
-          ? `当前为格式 ${format}，原有内容仍可读写。升级不改写历史；完成后锁定、停用设备授权与浏览器记忆，主密码不变。`
-          : "先备份并暂停其他设备写入。变更只重新保护原库密钥，旧备份仍用旧密码，不能撤销已复制的库密钥。完成后锁定并停用设备授权。"}
+          ? `当前为格式 ${format}，升级后支持分组等新功能，主密码与历史记录保持不变。`
+          : "修改前建议先备份。修改后将锁定资料库，并关闭本机自动解锁。"}
       </Notice>
       <form
         id="password-change"
@@ -254,7 +251,7 @@ function PasswordDialog({
                   !(await confirm({
                     title: "确认变更主密码？",
                     description:
-                      "资料库将锁定，旧审批失效。本机自动解锁会关闭，其他设备同步新配置后需重新授权。",
+                      "资料库将锁定，自动解锁也会关闭，需用新密码重新解锁。",
                   }))
                 )
                   return;
@@ -327,8 +324,7 @@ function PasswordDialog({
                 required
               />
               <span>
-                我已备份、更新所有设备程序并暂停其他设备写入，确认升级为格式
-                3。旧程序不能打开升级后的资料库。
+                我已备份资料并更新所有设备上的程序，了解升级后旧版程序将无法打开，确认升级为格式 3。
               </span>
             </label>
           )}

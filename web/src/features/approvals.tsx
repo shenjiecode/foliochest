@@ -42,15 +42,14 @@ export function Approvals({
     <section className="approvals-view scroll-region" aria-label="授权请求">
       <header className="page-heading">
         <h1>授权请求</h1>
-        <p className="field-note">这是独立审批页面，可通过 /#approvals 直接访问。存在待审批请求时，铃铛会持续显示；打开此页不会批准或清除请求。</p>
         <Button variant="outline" disabled={loading} onClick={onRefresh}>
           {loading ? "正在刷新审批…" : "刷新审批状态"}
         </Button>
       </header>
       <ErrorNotice message={error} />
-      {error && !!requests.length && <Notice>当前展示上次成功读取的请求，状态可能已变化；请刷新后再确认。</Notice>}
+      {error && !!requests.length && <Notice>暂时无法刷新，当前显示上次成功读取的列表。</Notice>}
       {!requests.length && !loading && !error && (
-        <p className="field-note">请求可能已处理、超过五分钟、因客户端断连撤销或因锁库失效。若 AI 仍在等待，请保持连接并重新发起请求。</p>
+        <p className="field-note">授权请求在 5 分钟内有效，锁定资料库或客户端断开后会自动失效。</p>
       )}
       {!requests.length ? (
         <EmptyState
@@ -155,8 +154,8 @@ function Approval({
         ))}
         <Notice>
           {request.operation === "read"
-            ? "同意后，所列正文与附件明文会交给该 AI 客户端。"
-            : "仅执行本次列出的替换，不向 AI 透露旧正文，也不改变长期权限。"}
+            ? "同意后，该 AI 客户端将读取上述内容。"
+            : "同意后，将按上述内容更新对应资料。"}
         </Notice>
         <ErrorNotice message={task.error} />
       </div>

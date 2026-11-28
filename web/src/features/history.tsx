@@ -29,9 +29,9 @@ export function historyRules(history: HistoryData) {
     groups,
     groupConflict: groups.length > 1,
     blocked: collision
-      ? "这是不同条目的同名冲突，当前不能直接合并或删除。请保留备份。"
+      ? "存在同名冲突，暂不支持直接合并或删除。"
       : !["ready", "conflict", "deleted"].includes(history.state)
-        ? "当前文件未完整，只能查看可用历史，不能恢复写入。"
+        ? "同步尚未完整，当前仅可查看历史版本。"
         : "",
   };
 }
@@ -175,7 +175,7 @@ function HistoryContent({
           !(await confirm({
             title: "删除全部当前分支？",
             description:
-              "未保存的合并草稿会丢失，全部已查看的当前分支将移到回收站；历史与附件保留，不是安全擦除。",
+              "全部当前分支将移到回收站，未保存的合并草稿会丢失。",
             label: "删除全部分支",
             danger: true,
           }))
@@ -203,9 +203,8 @@ function HistoryContent({
     <>
       <Notice>
         {history.state === "conflict"
-          ? "选择一个版本作为基础合并正文；当前全部分支将成为新版本的父版本，权限分别取当前分支中更严格的一项。"
-          : "恢复会创建新版本，保留当前名称、分组和权限；不会删除历史。"}{" "}
-        附件沿用所选版本。
+          ? "该条目存在多端同步冲突，请选择一个版本作为基础合并内容并保存。"
+          : "选择一个历史版本即可查看或恢复为新版本，原有历史会保留。"}
       </Notice>
       {rules.blocked && <Notice>{rules.blocked}</Notice>}
       <div className="history-layout">
@@ -256,7 +255,7 @@ function HistoryContent({
         </section>
       </div>
       {!selected && (
-        <Notice>没有可用历史，请等待同步完整，或从备份恢复到新目录。</Notice>
+        <Notice>暂无可查看的历史版本，请等待同步完成或从备份恢复。</Notice>
       )}
       {history.state === "conflict" &&
         !rules.blocked &&
@@ -316,7 +315,7 @@ function RestoreEditor({
           !(await confirm({
             title: "保存恢复版本？",
             description:
-              "以所选正文和附件创建新版本，旧历史保留。权限保持当前设置；有并发分支时采用更严格的权限。",
+              "将以当前内容和所选版本的附件保存为新版本。",
           }))
         )
           return false;

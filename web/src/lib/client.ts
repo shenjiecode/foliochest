@@ -1,7 +1,7 @@
 import type { AppState } from "./types";
 export class StaleRequest extends Error {
   constructor() {
-    super("网页会话或操作已变化，旧请求结果已丢弃");
+    super("stale");
   }
 }
 export const errorText = (error: unknown) =>
@@ -100,7 +100,7 @@ export class SessionClient {
           notice ??
           (changed
             ? before?.authenticated
-              ? "网页会话已更新，旧草稿与输入内容已清除。"
+              ? "会话已更新，页面已重置。"
               : ""
             : this.snapshot.notice),
       });
@@ -127,8 +127,6 @@ export class SessionClient {
   }
   private async response(path: string, body: unknown, epoch: number) {
     this.assert(epoch);
-    if (!path.startsWith("/api/") || path.startsWith("//"))
-      throw new Error("无效接口路径");
     let response: Response;
     try {
       response = await this.transport(path, {
@@ -147,9 +145,7 @@ export class SessionClient {
       });
     } catch {
       this.assert(epoch);
-      throw new Error(
-        "无法连接本机服务。已提交的操作可能完成，请核对状态后再操作。",
-      );
+      throw new Error("无法连接本机服务，请确认资料匣正在运行。");
     }
     this.assert(epoch);
     if (!response.ok) {

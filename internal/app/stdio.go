@@ -66,7 +66,7 @@ func connectStdio(device, approval string) (net.Conn, *bufio.Reader, error) {
 		return nil, nil, fail
 	}
 	u, err := url.Parse(info.URL)
-	if err != nil || u.Scheme != "http" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.Port() == "" || !net.ParseIP(u.Hostname()).IsLoopback() {
+	if err != nil || !validateLocalURL(u) {
 		return nil, nil, fail
 	}
 	conn, err := net.DialTimeout("tcp", u.Host, 3*time.Second)

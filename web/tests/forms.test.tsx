@@ -168,7 +168,7 @@ try {
   await click(find("下载并校验"));
   assert.equal(downloads, 1);
   assert.equal(installs, 0);
-  assert.ok(document.body.textContent?.includes("SHA-256 校验通过"));
+  assert.ok(document.body.textContent?.includes("通过 SHA-256 校验"));
   await click(find("退出并更新"));
   await click(find("取消"));
   assert.equal(installs, 0);
@@ -177,7 +177,7 @@ try {
   const installerConfirmation = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((b) => b.textContent?.trim() === "退出并更新")!;
   await click(installerConfirmation);
   assert.equal(installs, 1);
-  assert.ok(exitMessage.includes("不代表安装已完成"));
+  assert.ok(exitMessage.includes("已启动系统安装器"));
   assert.ok(exitMessage.includes("/synthetic/update.rpm"));
   // Default stdio does not fetch or expose HTTP credentials.
   let modeBody: any;

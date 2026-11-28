@@ -13,12 +13,6 @@ import { Brand } from "@/components/common";
 import { cn } from "@/lib/utils";
 import { type Group } from "@/lib/types";
 export type View = "entries" | "trash" | "settings" | "approvals";
-export const titles: Record<View, string> = {
-  entries: "资料库",
-  trash: "回收站",
-  settings: "设置",
-  approvals: "授权请求",
-};
 export function Sidebar({
   directory,
   count,

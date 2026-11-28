@@ -25,7 +25,7 @@ export function UpdateSettings({ version }: { version: string }) {
   const downloadUpdate = () => task.run(async (ctx) => {
     if (!result || !(await confirm({
       title: "下载新版安装包？",
-      description: `将从 GitHub 下载 ${result.installer}（${sizeText(result.size || 0)}）并校验 SHA-256。当前未提供发布者代码签名，校验和不是签名；请确认信任项目来源。此步骤不会退出程序或执行安装。`,
+      description: `将从 GitHub 下载 ${result.installer}（${sizeText(result.size || 0)}）并进行 SHA-256 完整性校验。`,
       label: "下载并校验",
     }))) return null;
     setAction("正在下载并校验…");
@@ -35,17 +35,17 @@ export function UpdateSettings({ version }: { version: string }) {
   const install = () => task.run(async (ctx) => {
     if (!ready || !(await confirm({
       title: "退出并启动安装器？",
-      description: "请先保存编辑、导出备份并暂停其他设备写入。资料库将锁定，网页和 MCP 会断开。Windows 打开安装向导，Linux 交给系统软件安装器（可能要求系统认证）；无需先卸载。完成后请从应用菜单重新启动。",
+      description: "更新前请保存正在编辑的内容。确认后将锁定资料库并退出程序，随后启动系统安装器；安装完成后重新打开资料匣即可。",
       label: "退出并更新",
     }))) return;
     setAction("正在准备退出…");
     const resume = client.pauseRefresh();
     try {
       await ctx.request("/api/app/install-update", { id: ready.id, confirmed: true });
-      exited(`正在交给系统安装器，这不代表安装已完成。请完成安装后从应用菜单重新启动资料匣。若未出现安装窗口，可手动安装已校验的文件：${ready.path}`);
+      exited(`已启动系统安装器，请按提示完成安装后重新打开资料匣。如未弹出安装窗口，可手动运行：${ready.path}`);
     } catch (error) {
       resume();
-      await ctx.refresh("更新未确认启动，请检查安装器是否已打开；资料库可能已锁定。已下载安装包保留，可手动安装。");
+      await ctx.refresh("未能启动安装器，可手动运行已下载的安装包。");
       throw error;
     } finally { resume(); }
   });
@@ -59,7 +59,7 @@ export function UpdateSettings({ version }: { version: string }) {
           {task.busy ? action || "正在处理…" : "检查更新"}
         </Button>
       </SettingRow>
-      <p className="settings-footnote">仅点击时连接 GitHub，不上传资料或凭据，不后台检查。下载和启动安装器分别确认，不静默提权或自动安装。</p>
+      <p className="settings-footnote">仅在手动点击时检查 GitHub 新版本。</p>
       <ErrorNotice message={task.error} />
       {result && <>
         <p role="status" className="field-note">
@@ -72,14 +72,14 @@ export function UpdateSettings({ version }: { version: string }) {
         </> : <p className="field-note">当前系统没有匹配的安装包，请打开下载页手动选择。</p>)}
       </>}
       {ready && <>
-        <p role="status" className="field-note">安装包已下载，SHA-256 校验通过。不会自动执行。</p>
+        <p role="status" className="field-note">安装包已下载并通过 SHA-256 校验，可随时开始更新。</p>
         <p className="path-value">{ready.path}</p>
         <Button disabled={task.busy} onClick={() => void install()}>退出并更新</Button>
       </>}
       <Button variant="outline" asChild>
         <a href={result?.url || releasePage} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{result ? "打开 GitHub 版本下载页" : "打开 GitHub 下载页"}</a>
       </Button>
-      <p className="settings-footnote">程序与资料库分离，正常更新保留资料与本机配置；双机同步请一起更新。Linux 若未配置软件安装器，请手动安装下载的 RPM / DEB。</p>
+      <p className="settings-footnote">更新会保留现有资料库与设置。多设备同步使用时，建议一并更新。</p>
     </>
   );
 }

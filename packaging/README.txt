@@ -6,7 +6,7 @@ Windows
 
 Linux
   解压到固定目录后执行 ./foliochest。
-  添加应用菜单入口：sh install-shortcut.sh（仅当前用户，不开启登录自启动）。
+  添加当前用户的应用菜单入口：sh install-shortcut.sh
   移除应用入口：sh install-shortcut.sh --remove
   系统目录选择器需要 zenity 等辅助工具。
 

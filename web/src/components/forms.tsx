@@ -194,7 +194,7 @@ export function GroupField({
           ? "分组需要格式 3，可在设置中备份并升级。"
           : compact
             ? undefined
-            : "明文，留空为未分组"
+            : "留空为未分组"
       }
     >
       <div

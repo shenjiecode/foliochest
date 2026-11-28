@@ -41,12 +41,15 @@ func newID() string {
 	}
 	return hex.EncodeToString(b)
 }
-func seal(key, plain, aad []byte) ([]byte, error) {
+func newGCM(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	gcm, err := cipher.NewGCM(block)
+	return cipher.NewGCM(block)
+}
+func seal(key, plain, aad []byte) ([]byte, error) {
+	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err
 	}
@@ -57,11 +60,7 @@ func seal(key, plain, aad []byte) ([]byte, error) {
 	return gcm.Seal(nonce, nonce, plain, aad), nil
 }
 func unseal(key, sealed, aad []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, err
 	}

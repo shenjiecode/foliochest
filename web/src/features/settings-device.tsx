@@ -64,8 +64,7 @@ function DeviceForm({ initial }: { initial: Device }) {
       },
       (result) =>
         client.notice(
-          result.warning ||
-            "设备授权已保存。关闭授权不结束当前会话，需要时另行锁定。",
+          result.warning || "设备授权已保存。",
         ),
     );
   return (
@@ -90,7 +89,7 @@ function DeviceForm({ initial }: { initial: Device }) {
                   ? "已启用"
                   : "已禁用"
             }
-            note="不打开浏览器，不代表自动解锁。程序应放在固定位置，移动后重新登记。"
+            note="开机登录后在后台自动运行。移动程序位置后需重新保存。"
           >
             <Switch
               aria-label="登录系统后启动"
@@ -131,7 +130,7 @@ function DeviceForm({ initial }: { initial: Device }) {
                   ? "已启用"
                   : "已禁用"
             }
-            note={device.provider + "；默认关闭，每次进程启动只尝试一次。"}
+            note={`使用系统凭据库（${device.provider}）自动解锁。`}
           >
             <Switch
               aria-label="自动解锁"
@@ -157,7 +156,7 @@ function DeviceForm({ initial }: { initial: Device }) {
                   ? "已启用"
                   : "已禁用"
             }
-            note="仅当前资料库已解锁时有效，最长 90 天；新授权替换旧记忆，不认证其他浏览器。"
+            note="免重复登录，有效期 90 天。"
           >
             <Switch
               aria-label="记住这个浏览器"
@@ -169,7 +168,7 @@ function DeviceForm({ initial }: { initial: Device }) {
           {auto && (
             <div className="field-grid section-action">
               <Notice>
-                系统凭据保存库密钥，不保存主密码。同一系统账户下的恶意程序可能读取凭据。系统凭据不可用时仍需主密码。
+                授权保存在本机系统凭据库中，不保存主密码。
               </Notice>
 
               <Field id="device-password" label="再次输入主密码">
@@ -201,9 +200,7 @@ function DeviceForm({ initial }: { initial: Device }) {
       </form>
       <ErrorNotice message={task.error} />
       {device.notice && <Notice>{device.notice}</Notice>}
-      <p className="settings-footnote">
-        以上设置只影响这台电脑，不随资料库同步。
-      </p>
+      <p className="settings-footnote">以上设置仅对当前电脑生效。</p>
     </>
   );
 }

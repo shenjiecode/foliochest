@@ -11,11 +11,12 @@ export function MCPSettings() {
   const resource = useResource<MCPConfig>("/api/mcp/settings");
   const task = useTask();
   const confirm = useConfirm();
+  const client = useClient();
   const config = resource.data;
   const change = (mode: "stdio" | "http") => task.run(async (ctx) => {
     if (!(await confirm({
       title: mode === "http" ? "启用 HTTP MCP？" : "切回 stdio？",
-      description: "两种接入方式互斥。切换会锁定资料库并使旧审批失效，请重新解锁和连接客户端。HTTP 需要独立接入凭据。",
+      description: "切换后将锁定资料库，需重新解锁并重新连接 AI 客户端。",
     }))) return;
     await ctx.request("/api/mcp/settings", { mode, confirmed: true });
     await ctx.refresh("MCP 接入方式已更新，请重新解锁。");
@@ -24,7 +25,7 @@ export function MCPSettings() {
     <>
       <section className="settings-section">
         <h2>MCP 接入方式</h2>
-        <p className="settings-footnote">默认 stdio，由 AI 客户端调用本机程序，无需手动配置 Token。仅明确选择 HTTP 时开放 HTTP MCP；两种方式不同时启用。</p>
+        <p className="settings-footnote">选择 AI 客户端的接入方式。推荐默认 stdio，无需手动管理凭据。</p>
         <ErrorNotice message={resource.error || task.error} />
         {!config ? <p>正在读取接入设置…</p> : <>
           <div className="inline-actions">
@@ -32,13 +33,12 @@ export function MCPSettings() {
             <Button variant={config.mode === "http" ? "default" : "outline"} disabled={task.busy || config.mode === "http"} onClick={() => void change("http")}>HTTP（高级）</Button>
           </div>
           {config.mode === "stdio" && <>
-            <p className="settings-footnote">先启动并解锁资料匣，再让 AI 客户端执行以下配置。子进程仅转接本机后台，不单独解锁或打开资料库；退出 AI 客户端不会退出资料匣。</p>
+            <p className="settings-footnote">保持资料匣运行并解锁，然后将下方配置添加到 AI 客户端：</p>
             <pre className="path-value">{JSON.stringify({ mcpServers: { foliochest: { command: config.command, args: config.args } } }, null, 2)}</pre>
             <Button variant="outline" disabled={task.busy} onClick={() => void task.run(async (ctx) => {
               ctx.assert();
               await navigator.clipboard.writeText(JSON.stringify({ mcpServers: { foliochest: { command: config.command, args: config.args } } }, null, 2));
-            })}>复制 stdio 配置</Button>
-            <p className="settings-footnote">读取、修改仍遵守逐条权限；锁库后 MCP 无法访问。空组只属于本机，分页目录不是跨同步写入的固定快照。</p>
+            }, () => client.notice("配置已复制。"))}>复制 stdio 配置</Button>
           </>}
         </>}
       </section>
@@ -96,9 +96,7 @@ function HTTPMCPSettings() {
       <h2>本机 MCP</h2>
       <p className="path-value">{location.origin}/mcp</p>
       <p className="settings-footnote">
-        每个 AI 客户端使用独立接入凭据，不使用主密码。资料匣必须保持解锁，锁定后
-        MCP 也无法访问资料。
-        读取和修改仍按每条资料的权限执行；支持交互确认的客户端在原处审批，否则在网页确认。
+        为每个 AI 客户端创建独立凭据，访问时仍受单条资料权限控制。
       </p>
       <form
         className="section-action"
@@ -135,8 +133,7 @@ function HTTPMCPSettings() {
       {token && (
         <div className="secret-box">
           <Notice>
-            接入凭据仅显示一次。请保存到 harness
-            配置，不要发到聊天或提交到仓库。
+            接入凭据仅显示一次，请妥善保存到客户端配置中。
           </Notice>
           <pre className="secret-token">{token}</pre>
           <p className="field-note">Authorization: Bearer &lt;接入凭据&gt;</p>

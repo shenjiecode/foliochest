@@ -57,6 +57,11 @@ func (i *instance) publish(baseURL string) error {
 }
 func (i *instance) close() { _ = os.Remove(i.path); _ = i.file.Close() }
 
+// validateLocalURL accepts only loopback http URLs with an explicit port and no path, query, fragment or user info.
+func validateLocalURL(u *url.URL) bool {
+	return u != nil && u.Scheme == "http" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && u.Port() != "" && net.ParseIP(u.Hostname()).IsLoopback()
+}
+
 func existingInstance(directory string) (string, error) {
 	transport := &http.Transport{Proxy: nil}
 	defer transport.CloseIdleConnections()
@@ -66,7 +71,7 @@ func existingInstance(directory string) (string, error) {
 		var info instanceInfo
 		if err == nil && json.Unmarshal(raw, &info) == nil && len(info.Token) == 48 {
 			u, e := url.Parse(info.URL)
-			if e == nil && u.Scheme == "http" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && u.Port() != "" && net.ParseIP(u.Hostname()).IsLoopback() {
+			if e == nil && validateLocalURL(u) {
 				req, _ := http.NewRequest("GET", info.URL+"/api/launcher", nil)
 				req.Header.Set("X-FolioChest-Launcher", info.Token)
 				response, e := client.Do(req)

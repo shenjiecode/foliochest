@@ -72,7 +72,7 @@ try {
   assert.equal(location.hash, "#approvals");
   assert.equal(document.querySelector(".approval-notice"), null);
   assert.ok(text().includes("没有待处理的授权请求"));
-  assert.ok(text().includes("超过五分钟"));
+  assert.ok(text().includes("5 分钟"));
   failApprovals = true;
   await tick();
   assert.ok(text().includes("暂时无法确认待审批状态"));

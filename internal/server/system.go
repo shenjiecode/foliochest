@@ -35,12 +35,12 @@ func (s *Server) SystemStatus() SystemStatus {
 	s.system.mu.Lock()
 	defer s.system.mu.Unlock()
 	e := s.system.event
-	message := "系统锁屏与休眠监测已连接；解锁系统不会自动重开资料库。"
+	message := "系统锁屏与休眠监测已开启。"
 	if !e.Available {
-		message = "系统事件监测暂不可用，不能保证锁屏时锁定；无法确认会话时不会自动解锁。请使用手动或空闲锁定。"
+		message = "当前无法监测系统锁屏事件，建议使用手动或空闲锁定。"
 	}
 	if !enabled {
-		message = "系统事件锁定已关闭；手动或空闲锁定不受影响。"
+		message = "系统事件锁定已关闭。"
 	}
 	return SystemStatus{Available: e.Available, Locked: e.Locked, Sleeping: e.Sleeping, Enabled: enabled, Message: message, LockReason: s.system.reason}
 }

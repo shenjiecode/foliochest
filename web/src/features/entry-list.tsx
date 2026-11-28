@@ -144,7 +144,7 @@ export function EntryList(p: Props) {
                 >
                   <span className="search-option-copy">
                     <span>同时搜索正文</span>
-                    <small>在 Key、描述、分组之外搜索正文</small>
+                    <small>同时匹配正文内容</small>
                   </span>
                   <span className="search-option-state">
                     {p.bodySearch ? "已开启" : "未开启"}
@@ -206,7 +206,6 @@ export function EntryList(p: Props) {
       {creatingGroup && (
         <Modal
           title="新建分组"
-          description="空组保存在本机，刷新或重启后仍保留；新建组本次临时显示，不受隐藏空组影响。暂不随资料库同步或备份。"
           busy={task.busy}
           onClose={() => setCreatingGroup(false)}
         >
